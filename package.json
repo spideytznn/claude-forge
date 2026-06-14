@@ -44,9 +44,7 @@
     "directories": {
       "output": "release"
     },
-    "asarUnpack": [
-      "**/node_modules/@anthropic-ai/claude-agent-sdk/**"
-    ],
+    "asar": false,
     "win": {
       "target": "nsis"
     },
