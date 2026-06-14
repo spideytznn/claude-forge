@@ -146,9 +146,9 @@ function applyStreamEvent(
         ...items,
         { id: msgId, kind: 'assistant', blocks: [], parentToolUseId: parent, streaming: true }
       ]
-      // A new turn just started → any queued user messages are now being
-      // processed, so drop their "排队中" badge.
-      items = items.map((i) => (i.kind === 'user' && i.queued ? { ...i, queued: false } : i))
+      // NOTE: do NOT clear `queued` here — a single turn emits many
+      // message_starts (one per tool-call round-trip). The queued badge is
+      // cleared on `result` (the real end of the turn) instead.
     }
     return { items, currentStreamingMsgId: msgId }
   }
@@ -940,10 +940,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
                   : r.subtype
           },
           // Turn done: clear the streaming flag on any provisional items that
-          // never got replaced by a final assistant message, and reset the id.
-          items: s.items.map((i) =>
-            i.kind === 'assistant' && i.streaming ? { ...i, streaming: false } : i
-          ),
+          // never got replaced by a final assistant message, reset the id, and
+          // advance the queue by one — the oldest queued user message is what
+          // the agent just finished OR is about to be processed next.
+          items: (() => {
+            let clearedQueued = false
+            return s.items.map((i) => {
+              if (i.kind === 'assistant' && i.streaming) return { ...i, streaming: false }
+              if (!clearedQueued && i.kind === 'user' && i.queued) {
+                clearedQueued = true
+                return { ...i, queued: false }
+              }
+              return i
+            })
+          })(),
           currentStreamingMsgId: null
         }))
         break
