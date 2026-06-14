@@ -170,7 +170,14 @@ export default function Sidebar(): JSX.Element {
       }`
     return (
       <div className="glass-sidebar flex w-14 shrink-0 flex-col items-center rounded-[18px] border py-3">
-        <div className="accent-soft-button flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold text-white">
+        <button
+          onClick={toggleSidebar}
+          className={iconBtn(false)}
+          title="展开侧边栏"
+        >
+          <ChevronIcon collapsed />
+        </button>
+        <div className="accent-soft-button mt-2 flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold text-white">
           F
         </div>
         <div className="mt-2">
@@ -220,13 +227,6 @@ export default function Sidebar(): JSX.Element {
           title="设置"
         >
           <GearIcon />
-        </button>
-        <button
-          onClick={toggleSidebar}
-          className={`mt-1 ${iconBtn(false)}`}
-          title="展开侧边栏"
-        >
-          <ChevronIcon collapsed />
         </button>
       </div>
     )
