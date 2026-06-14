@@ -391,11 +391,15 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       : undefined
     const attProps = displayAttachments ? { attachments: displayAttachments } : {}
 
-    // Always push to the SDK (it queues internally); the UI placement differs:
-    // idle → straight into the transcript; busy → hold above the Composer until
-    // the current turn finishes (then the result handler drops it in).
+    // Always push to the SDK (it queues internally); the UI placement differs.
+    // Queue (hover) only when the MAIN agent is genuinely busy — not when it's
+    // merely waiting on a backgrounded subagent (then it's free for new input).
+    const hasBackgroundSubagent = get().tasks.some(
+      (t) => t.isBackgrounded && t.status === 'running'
+    )
+    const busy = get().status.running && !hasBackgroundSubagent
     await window.api.sendMessage(meta.sessionId, content)
-    if (get().status.running) {
+    if (busy) {
       set((s) => ({ pendingQueue: [...s.pendingQueue, { id: uid(), text: value, ...attProps }] }))
     } else {
       set((s) => ({
