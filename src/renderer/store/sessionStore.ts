@@ -80,6 +80,23 @@ function uid(): string {
   return crypto.randomUUID()
 }
 
+/** True if the Task tool_use that spawned a task was called with
+ *  run_in_background: true — i.e. the model launched it directly in the
+ *  background (distinct from a user backgrounding a foreground task later). */
+function launchedInBackground(items: TranscriptItem[], toolUseId?: string): boolean {
+  if (!toolUseId) return false
+  for (const it of items) {
+    if (!it || it.kind !== 'assistant') continue
+    for (const b of it.blocks) {
+      if (b && b.kind === 'tool' && b.toolUseId === toolUseId) {
+        const input = b.input as { run_in_background?: unknown } | undefined
+        return !!input?.run_in_background
+      }
+    }
+  }
+  return false
+}
+
 /** Immutably update the ToolBlock whose toolUseId matches, wherever it lives. */
 function mapTool(
   items: TranscriptItem[],
@@ -608,18 +625,23 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             description: string
             subagent_type?: string
           }
-          const task: SubagentTask = {
-            taskId: t.task_id,
-            description: t.description,
-            subagentType: t.subagent_type,
-            toolUseId: t.tool_use_id,
-            status: 'running'
-          }
-          set((s) => ({
-            tasks: s.tasks.some((x) => x.taskId === t.task_id)
-              ? s.tasks.map((x) => (x.taskId === t.task_id ? { ...x, ...task } : x))
-              : [...s.tasks, task]
-          }))
+          set((s) => {
+            // Was this launched directly in the background (run_in_background:true)?
+            const isBackgrounded = launchedInBackground(s.items, t.tool_use_id)
+            const task: SubagentTask = {
+              taskId: t.task_id,
+              description: t.description,
+              subagentType: t.subagent_type,
+              toolUseId: t.tool_use_id,
+              status: 'running',
+              isBackgrounded
+            }
+            return {
+              tasks: s.tasks.some((x) => x.taskId === t.task_id)
+                ? s.tasks.map((x) => (x.taskId === t.task_id ? { ...x, ...task } : x))
+                : [...s.tasks, task]
+            }
+          })
         } else if (subtype === 'task_progress') {
           const t = msg as unknown as {
             task_id: string
