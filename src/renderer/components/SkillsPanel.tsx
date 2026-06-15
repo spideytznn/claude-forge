@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import type { SkillInfo, MarketplacePlugin } from '../../shared/ipc'
+import DisclosureSelect from './DisclosureSelect'
 
 type Tab = 'skills' | 'store'
 
@@ -335,17 +336,12 @@ function StoreTab({
           placeholder="搜索插件…"
           className="min-w-[12rem] flex-1 rounded-lg border border-border-subtle bg-bg-elev px-3 py-1.5 text-sm text-zinc-200 outline-none focus:border-accent"
         />
-        <select
+        <DisclosureSelect
           value={category}
-          onChange={(e) => setCategory(e.target.value)}
-          className="rounded-lg border border-border-subtle bg-bg-elev px-2.5 py-1.5 text-xs text-zinc-300 outline-none focus:border-accent"
-        >
-          {categories.map((c) => (
-            <option key={c} value={c}>
-              {c === 'all' ? '全部分类' : c}
-            </option>
-          ))}
-        </select>
+          options={categories.map((c) => ({ value: c, label: c === 'all' ? '全部分类' : c }))}
+          onChange={setCategory}
+          className="min-w-[8rem]"
+        />
       </div>
 
       {loading && <div className="py-10 text-center text-sm text-zinc-500">加载中…</div>}

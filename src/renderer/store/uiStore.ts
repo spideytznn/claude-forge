@@ -10,11 +10,16 @@ interface UiStore {
   setView: (view: View) => void
   sidebarCollapsed: boolean
   toggleSidebar: () => void
+  /** Footer tool nav (skills/mcp/providers/translate/settings) collapsed. */
+  navCollapsed: boolean
+  toggleNav: () => void
 }
 
 export const useUiStore = create<UiStore>((set) => ({
   view: 'chat',
   setView: (view) => set({ view }),
   sidebarCollapsed: false,
-  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed }))
+  toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+  navCollapsed: false,
+  toggleNav: () => set((s) => ({ navCollapsed: !s.navCollapsed }))
 }))

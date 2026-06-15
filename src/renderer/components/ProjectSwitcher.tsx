@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import type { Project } from '../../shared/ipc'
+import Collapse from './Collapse'
 
 const FolderIcon = (): JSX.Element => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -123,7 +124,7 @@ export default function ProjectSwitcher({ collapsed }: { collapsed: boolean }): 
       onClick={() => setOpen((o) => !o)}
       disabled={starting}
       title={current?.path ?? meta?.cwd ?? ''}
-      className="glass-control flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/[0.075] disabled:opacity-50"
+      className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 transition hover:bg-white/[0.06] hover:text-zinc-100 disabled:opacity-50"
     >
       <FolderIcon />
       <span className="flex-1 truncate text-left">{currentLabel}</span>
@@ -131,130 +132,175 @@ export default function ProjectSwitcher({ collapsed }: { collapsed: boolean }): 
     </button>
   )
 
+  // Shared project list + "add" row. `open` drives the stagger transition; in
+  // the expanded sidebar it lives inside <Collapse> (so it animates), in the
+  // collapsed icon rail it's shown directly in a floating frame (the rail is
+  // too narrow for in-place expand).
+  const listContent = (
+    <>
+      <div className="max-h-72 overflow-y-auto">
+        {projects.length === 0 && (
+          <div className="px-3 py-2 text-xs text-zinc-600">还没有项目</div>
+        )}
+        {projects.map((p, i) => {
+          const isCurrent = p.path === meta?.cwd
+          const editing = editingPath === p.path
+          const confirming = confirmPath === p.path
+          return (
+            <div
+              key={p.path}
+              className="group relative px-1 transition-all duration-[360ms] ease-spring"
+              style={{
+                transitionDelay: open ? `${i * 40}ms` : '0ms',
+                opacity: open ? 1 : 0,
+                transform: open ? 'translateY(0)' : 'translateY(-6px)'
+              }}
+            >
+              {editing ? (
+                <input
+                  autoFocus
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') void commitRename(p.path)
+                    else if (e.key === 'Escape') setEditingPath(null)
+                  }}
+                  onBlur={() => void commitRename(p.path)}
+                  className="m-1 w-[calc(100%-0.5rem)] rounded-lg border border-accent/70 bg-bg-base/80 px-2 py-1 text-xs text-zinc-100 outline-none"
+                />
+              ) : (
+                <button
+                  onClick={() => void onSwitch(p.path)}
+                  className={`flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs transition ${
+                    isCurrent
+                      ? 'glass-active text-zinc-100'
+                      : 'text-zinc-400 hover:bg-white/[0.055] hover:text-zinc-200'
+                  }`}
+                >
+                  <span
+                    className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                      isCurrent ? 'bg-accent' : 'bg-transparent'
+                    }`}
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate">{p.name}</span>
+                    <span className="block truncate text-[10px] text-zinc-600">{p.path}</span>
+                  </span>
+                </button>
+              )}
+
+              {!editing && (
+                <div
+                  className={`absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 transition ${
+                    confirming ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                  }`}
+                >
+                  {confirming ? (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          void doRemove(p.path)
+                        }}
+                        className="rounded bg-red-950/80 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-900/80"
+                      >
+                        删除
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setConfirmPath(null)
+                        }}
+                        className="rounded bg-bg-base/80 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-bg-hover"
+                      >
+                        取消
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setEditingPath(p.path)
+                          setEditText(p.name)
+                        }}
+                        className="rounded-lg p-1 text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200"
+                        title="重命名"
+                      >
+                        <EditIcon />
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setConfirmPath(p.path)
+                        }}
+                        className="rounded-lg p-1 text-zinc-500 transition hover:bg-red-950/50 hover:text-red-300"
+                        title="删除"
+                      >
+                        <TrashIcon />
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+      <div className="mt-0.5 border-t border-white/[0.06] px-1 pt-0.5">
+        <button
+          onClick={() => void addNew()}
+          style={{
+            transitionDelay: open ? `${projects.length * 40}ms` : '0ms',
+            opacity: open ? 1 : 0,
+            transform: open ? 'translateY(0)' : 'translateY(-6px)'
+          }}
+          className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs text-zinc-400 transition-all duration-[360ms] ease-spring hover:bg-white/[0.055] hover:text-zinc-200"
+        >
+          <PlusIcon /> 添加项目…
+        </button>
+      </div>
+    </>
+  )
+
+  // Collapsed icon rail: too narrow (w-14) for the frame to grow in place,
+  // so the list floats beside the icon instead.
+  if (collapsed) {
+    return (
+      <div className="relative">
+        {trigger}
+        {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
+        <Collapse
+          open={open}
+          className={`absolute left-0 top-full z-50 mt-1 w-56 ${open ? '' : 'pointer-events-none'}`}
+        >
+          <div className="glass-panel-soft rounded-2xl p-1.5">{listContent}</div>
+        </Collapse>
+      </div>
+    )
+  }
+
+  // Expanded sidebar: the frame ITSELF enlarges — trigger + list share one
+  // glass-panel-soft frame, which is absolutely positioned so growing it
+  // overlaps the session list instead of shoving it. A placeholder reserves
+  // the trigger's footprint in the flow.
   return (
     <div className="relative">
-      {trigger}
-      {open && (
-        <>
-          {/* outside-click catcher */}
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div
-            className={`glass-panel absolute z-50 mt-1 overflow-hidden rounded-2xl shadow-xl ${
-              collapsed ? 'left-0 w-56' : 'left-0 right-0'
-            }`}
-          >
-            <div className="max-h-72 overflow-y-auto py-1">
-              {projects.length === 0 && (
-                <div className="px-3 py-2 text-xs text-zinc-600">还没有项目</div>
-              )}
-              {projects.map((p) => {
-                const isCurrent = p.path === meta?.cwd
-                const editing = editingPath === p.path
-                const confirming = confirmPath === p.path
-                return (
-                  <div key={p.path} className="group relative px-1">
-                    {editing ? (
-                      <input
-                        autoFocus
-                        value={editText}
-                        onChange={(e) => setEditText(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') void commitRename(p.path)
-                          else if (e.key === 'Escape') setEditingPath(null)
-                        }}
-                        onBlur={() => void commitRename(p.path)}
-                        className="m-1 w-[calc(100%-0.5rem)] rounded-lg border border-accent/70 bg-bg-base/80 px-2 py-1 text-xs text-zinc-100 outline-none"
-                      />
-                    ) : (
-                      <button
-                        onClick={() => void onSwitch(p.path)}
-                        className={`flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs transition ${
-                          isCurrent
-                            ? 'bg-white/[0.07] text-zinc-100'
-                            : 'text-zinc-400 hover:bg-white/[0.055] hover:text-zinc-200'
-                        }`}
-                      >
-                        <span
-                          className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                            isCurrent ? 'bg-accent' : 'bg-transparent'
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate">{p.name}</span>
-                          <span className="block truncate text-[10px] text-zinc-600">{p.path}</span>
-                        </span>
-                      </button>
-                    )}
-
-                    {!editing && (
-                      <div
-                        className={`absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 transition ${
-                          confirming ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                        }`}
-                      >
-                        {confirming ? (
-                          <>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                void doRemove(p.path)
-                              }}
-                              className="rounded bg-red-950/80 px-1.5 py-0.5 text-[10px] text-red-300 hover:bg-red-900/80"
-                            >
-                              删除
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setConfirmPath(null)
-                              }}
-                              className="rounded bg-bg-base/80 px-1.5 py-0.5 text-[10px] text-zinc-400 hover:bg-bg-hover"
-                            >
-                              取消
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setEditingPath(p.path)
-                                setEditText(p.name)
-                              }}
-                              className="rounded-lg p-1 text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-200"
-                              title="重命名"
-                            >
-                              <EditIcon />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setConfirmPath(p.path)
-                              }}
-                              className="rounded-lg p-1 text-zinc-500 transition hover:bg-red-950/50 hover:text-red-300"
-                              title="删除"
-                            >
-                              <TrashIcon />
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
-            <div className="border-t border-white/10 p-1">
-              <button
-                onClick={() => void addNew()}
-                className="flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left text-xs text-zinc-400 transition hover:bg-white/[0.055] hover:text-zinc-200"
-              >
-                <PlusIcon /> 添加项目…
-              </button>
-            </div>
+      <div className="glass-panel-soft absolute inset-x-0 top-0 z-50 rounded-2xl p-1.5">
+        {trigger}
+        <Collapse open={open}>
+          <div className="pt-0.5">{listContent}</div>
+        </Collapse>
+      </div>
+      {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
+      <div className="invisible" aria-hidden>
+        <div className="glass-panel-soft rounded-2xl p-1.5">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
+            <span className="w-[15px]" />
+            <span className="flex-1 truncate">{currentLabel}</span>
           </div>
-        </>
-      )}
+        </div>
+      </div>
     </div>
   )
 }

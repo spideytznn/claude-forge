@@ -5,7 +5,8 @@ import type {
   PermissionResponsePayload,
   SessionListItem,
   HistoryMessage,
-  PickedFile
+  PickedFile,
+  EffortLevel
 } from '../../shared/ipc'
 import type {
   TranscriptItem,
@@ -45,6 +46,11 @@ interface SessionStore {
   startSession: (args: StartArgs) => Promise<void>
   sendMessage: (text: string, attachments?: PickedFile[]) => Promise<void>
   interrupt: () => Promise<void>
+  /** Current thinking-depth (effort). Set at session start from the default in
+   *  Settings, swappable live via Composer (applied by restarting the session
+   *  — the SDK has no runtime effort swap, unlike model). */
+  effort: EffortLevel
+  setEffort: (effort: EffortLevel) => Promise<void>
   setModel: (model: string) => Promise<void>
   reset: () => void
 
@@ -312,6 +318,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   starting: false,
   bootstrapped: false,
   meta: null,
+  effort: 'high',
   items: [],
   status: emptyStatus,
   pendingPermissions: [],
@@ -324,17 +331,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     // Pre-register synchronously: bridgeSessionId is added to the bridge's map
     // before claude.exe finishes spawning, so the UI never locks on init.
     const newId = uid()
-    const permissionMode =
-      (await window.api.getPreferences().catch(() => null))?.defaultPermissionMode ?? 'default'
+    const prefs = await window.api.getPreferences().catch(() => null)
+    const permissionMode = prefs?.defaultPermissionMode ?? 'default'
+    const effort = prefs?.defaultEffort ?? 'high'
     const opts: StartSessionOptions = {
       cwd: args.cwd,
       ...(args.apiKey ? { apiKey: args.apiKey } : {}),
       ...(args.model ? { model: args.model } : {}),
+      effort,
       permissionMode,
       bridgeSessionId: newId
     }
     await window.api.startSession(opts)
     set({
+      effort,
       meta: {
         sessionId: newId,
         cwd: args.cwd,
@@ -456,7 +466,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       meta: { sessionId: newId, cwd: path, model, permissionMode: 'default', tools: [] }
     })
     if (oldMeta?.sessionId) await window.api.closeSession(oldMeta.sessionId).catch(() => {})
-    await window.api.startSession({ cwd: path, model, bridgeSessionId: newId })
+    await window.api.startSession({ cwd: path, model, effort: get().effort, bridgeSessionId: newId })
     set({ starting: false })
     void get().refreshSessions()
     scheduleInitWatchdog(get, set)
@@ -491,7 +501,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       meta: { sessionId: newId, cwd, model, permissionMode, tools: [] }
     })
     await window.api.closeSession(oldSessionId).catch(() => {})
-    await window.api.startSession({ cwd, model, bridgeSessionId: newId })
+    await window.api.startSession({ cwd, model, effort: get().effort, bridgeSessionId: newId })
     set({ starting: false })
     void get().refreshSessions()
     scheduleInitWatchdog(get, set)
@@ -525,7 +535,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
     })
     await window.api.closeSession(oldSessionId).catch(() => {})
-    await window.api.startSession({ cwd, model, resume: sdkSessionId, bridgeSessionId: newId })
+    await window.api.startSession({ cwd, model, effort: get().effort, resume: sdkSessionId, bridgeSessionId: newId })
     set({ starting: false })
     scheduleInitWatchdog(get, set)
   },
@@ -584,6 +594,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const meta = get().meta
     if (!meta || get().starting) return
     const { cwd, model, permissionMode, sdkSessionId } = meta
+    const effort = get().effort
     const oldSessionId = meta.sessionId
     const newId = uid()
     set({ starting: true, status: { running: false }, currentStreamingMsgId: null })
@@ -608,11 +619,20 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     await window.api.closeSession(oldSessionId).catch(() => {})
     await window.api.startSession(
       sdkSessionId
-        ? { cwd, model, resume: sdkSessionId, bridgeSessionId: newId }
-        : { cwd, model, bridgeSessionId: newId }
+        ? { cwd, model, effort, resume: sdkSessionId, bridgeSessionId: newId }
+        : { cwd, model, effort, bridgeSessionId: newId }
     )
     set({ starting: false })
     scheduleInitWatchdog(get, set)
+  },
+
+  async setEffort(effort) {
+    // The SDK exposes no runtime effort swap (unlike model's query.setModel),
+    // so applying a new thinking depth means restarting the agent. History is
+    // resumed, so the conversation itself is preserved.
+    if (get().starting) return
+    set({ effort })
+    await get().restartSession()
   },
 
   async switchProvider(id) {

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import type { GitBranchInfo, GitCommit, GitStatus } from '../../shared/ipc'
 import DiffView from './DiffView'
+import Collapse from './Collapse'
 import ConfirmDialog from './ConfirmDialog'
 
 /* --- icons --- */
@@ -377,7 +378,7 @@ export default function GitToolbar(): JSX.Element {
       </div>
 
       {/* --- drawer area (one at a time) --- */}
-      {drawer && (
+      <Collapse open={!!drawer}>
         <div className="max-h-[46vh] overflow-y-auto border-t border-white/[0.06] px-3 py-2.5 text-zinc-300">
           {/* Branches drawer */}
           {drawer === 'branches' && (
@@ -644,7 +645,7 @@ export default function GitToolbar(): JSX.Element {
             </div>
           )}
         </div>
-      )}
+      </Collapse>
 
       <ConfirmDialog
         open={!!confirm}

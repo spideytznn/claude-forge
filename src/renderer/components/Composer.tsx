@@ -1,11 +1,20 @@
-import { useEffect, useState, type FocusEvent, type KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { useSessionStore } from '../store/sessionStore'
-import type { PickedFile } from '../../shared/ipc'
+import type { PickedFile, EffortLevel } from '../../shared/ipc'
+import DisclosureSelect from './DisclosureSelect'
 
 const DEFAULT_MODELS = [
   { id: 'claude-opus-4-8', label: 'Opus 4.8' },
   { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
   { id: 'claude-haiku-4-5', label: 'Haiku 4.5' }
+]
+
+const EFFORTS: { id: EffortLevel; label: string }[] = [
+  { id: 'low', label: '低' },
+  { id: 'medium', label: '中' },
+  { id: 'high', label: '高' },
+  { id: 'xhigh', label: '很高' },
+  { id: 'max', label: '最大' }
 ]
 
 export default function Composer(): JSX.Element {
@@ -15,10 +24,11 @@ export default function Composer(): JSX.Element {
   const sendMessage = useSessionStore((s) => s.sendMessage)
   const interrupt = useSessionStore((s) => s.interrupt)
   const setModel = useSessionStore((s) => s.setModel)
+  const effort = useSessionStore((s) => s.effort)
+  const setEffort = useSessionStore((s) => s.setEffort)
   const pending = useSessionStore((s) => s.pendingQueue)
   const [text, setText] = useState('')
   const [models, setModels] = useState(DEFAULT_MODELS)
-  const [modelOpen, setModelOpen] = useState(false)
   const [attachments, setAttachments] = useState<PickedFile[]>([])
 
   // Override the built-in model list with the user's configured list (Settings).
@@ -52,15 +62,6 @@ export default function Composer(): JSX.Element {
       void submit()
     }
   }
-
-  const closeModelMenuOnBlur = (e: FocusEvent<HTMLDivElement>): void => {
-    const next = e.relatedTarget
-    if (!(next instanceof Node) || !e.currentTarget.contains(next)) {
-      setModelOpen(false)
-    }
-  }
-
-  const selectedModel = models.find((m) => m.id === meta?.model) ?? null
 
   return (
     <div className="bg-transparent px-6 pb-3 pt-2">
@@ -138,74 +139,31 @@ export default function Composer(): JSX.Element {
               <kbd className="font-sans text-zinc-400">Enter</kbd> 发送 ·{' '}
               <kbd className="font-sans text-zinc-400">Shift+Enter</kbd> 换行
             </span>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-end gap-2">
               {meta && (
-                <div
-                  className="relative"
-                  onBlur={closeModelMenuOnBlur}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Escape') setModelOpen(false)
+                <DisclosureSelect
+                  value={effort}
+                  options={EFFORTS.map((o) => ({ value: o.id, label: o.label }))}
+                  onChange={(v) => {
+                    if (v !== effort) void setEffort(v as EffortLevel)
                   }}
-                >
-                  <button
-                    type="button"
-                    onClick={() => setModelOpen((open) => !open)}
-                    className="glass-control flex h-10 min-w-36 items-center gap-2 rounded-xl px-3 text-left text-xs text-zinc-200 transition hover:bg-white/[0.09]"
-                    aria-haspopup="listbox"
-                    aria-expanded={modelOpen}
-                  >
-                    <span className="flex-1 truncate">{selectedModel?.label ?? meta.model}</span>
-                    <svg
-                      width="14"
-                      height="14"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      className={`shrink-0 text-zinc-500 transition ${modelOpen ? 'rotate-180' : ''}`}
-                    >
-                      <path
-                        d="M6 9l6 6 6-6"
-                        stroke="currentColor"
-                        strokeWidth="1.8"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                      />
+                  placement="top"
+                  triggerLeading={
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0 text-zinc-400">
+                      <path d="M5 20V14M12 20V8M19 20V4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
                     </svg>
-                  </button>
-                  {modelOpen && (
-                    <div
-                      role="listbox"
-                      className="glass-panel absolute bottom-full right-0 z-50 mb-2 w-48 overflow-hidden rounded-2xl p-1"
-                    >
-                      {models.map((m) => {
-                        const active = m.id === meta.model
-                        return (
-                          <button
-                            key={m.id}
-                            type="button"
-                            role="option"
-                            aria-selected={active}
-                            onClick={() => {
-                              setModelOpen(false)
-                              void setModel(m.id)
-                            }}
-                            className={`flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs transition ${
-                              active
-                                ? 'bg-white/[0.1] text-zinc-100'
-                                : 'text-zinc-400 hover:bg-white/[0.07] hover:text-zinc-200'
-                            }`}
-                          >
-                            <span
-                              className={`h-1.5 w-1.5 shrink-0 rounded-full ${
-                                active ? 'bg-accent' : 'bg-transparent'
-                              }`}
-                            />
-                            <span className="truncate">{m.label}</span>
-                          </button>
-                        )
-                      })}
-                    </div>
-                  )}
-                </div>
+                  }
+                  className="w-fit"
+                />
+              )}
+              {meta && (
+                <DisclosureSelect
+                  value={meta.model}
+                  options={models.map((m) => ({ value: m.id, label: m.label }))}
+                  onChange={(v) => void setModel(v)}
+                  placement="top"
+                  className="min-w-36"
+                />
               )}
               {running && (
                 <button

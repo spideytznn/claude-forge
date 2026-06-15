@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
-import { useUiStore } from '../store/uiStore'
+import { useUiStore, type View } from '../store/uiStore'
 import ProjectSwitcher from './ProjectSwitcher'
 import type { Provider, SessionListItem } from '../../shared/ipc'
 
@@ -136,6 +136,16 @@ const LanguageIcon = (): JSX.Element => (
   </svg>
 )
 
+/** The five footer tool tabs, in display order. Drives both the icon rail
+ *  (collapsed sidebar) and the collapsible nav (expanded sidebar). */
+const NAV_ITEMS: { view: View; label: string; icon: () => JSX.Element }[] = [
+  { view: 'skills', label: '技能', icon: SkillsIcon },
+  { view: 'mcp', label: 'MCP 服务器', icon: McpIcon },
+  { view: 'providers', label: '运营商', icon: ShieldIcon },
+  { view: 'translate', label: '翻译', icon: LanguageIcon },
+  { view: 'settings', label: '设置', icon: GearIcon }
+]
+
 export default function Sidebar(): JSX.Element {
   const meta = useSessionStore((s) => s.meta)
   const sessions = useSessionStore((s) => s.sessions)
@@ -149,6 +159,8 @@ export default function Sidebar(): JSX.Element {
   const setView = useUiStore((s) => s.setView)
   const collapsed = useUiStore((s) => s.sidebarCollapsed)
   const toggleSidebar = useUiStore((s) => s.toggleSidebar)
+  const navCollapsed = useUiStore((s) => s.navCollapsed)
+  const toggleNav = useUiStore((s) => s.toggleNav)
 
   const [activeProvider, setActiveProvider] = useState<Provider | null>(null)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -183,7 +195,7 @@ export default function Sidebar(): JSX.Element {
         on ? 'glass-active text-zinc-100' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
       }`
     return (
-      <div className="glass-sidebar flex w-14 shrink-0 flex-col items-center rounded-[18px] border py-3">
+      <div className="sidebar-collapse glass-sidebar flex w-14 shrink-0 flex-col items-center rounded-[18px] border py-3">
         <button
           onClick={toggleSidebar}
           className={iconBtn(false)}
@@ -261,7 +273,7 @@ export default function Sidebar(): JSX.Element {
     }`
 
   return (
-    <div className="glass-sidebar flex w-64 shrink-0 flex-col rounded-[18px] border">
+    <div className="sidebar-expand glass-sidebar flex w-64 shrink-0 flex-col rounded-[18px] border">
       {/* brand + collapse */}
       <div className="flex items-center gap-2 px-4 pt-4">
         <div className="accent-soft-button flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold text-white">
@@ -334,7 +346,10 @@ export default function Sidebar(): JSX.Element {
               const editing = editingId === s.sessionId
               const confirming = confirmDeleteId === s.sessionId
               return (
-                <div key={s.sessionId} className="group relative">
+                <div
+                  key={s.sessionId}
+                  className="group relative [content-visibility:auto] [contain-intrinsic-size:auto_44px]"
+                >
                   {editing ? (
                     <input
                       autoFocus
@@ -422,35 +437,56 @@ export default function Sidebar(): JSX.Element {
         ))}
       </div>
 
-      {/* footer nav */}
+      {/* footer nav — collapsible tool tabs */}
       <div className="px-3 pb-4 pt-2">
         <div className="glass-panel-soft rounded-2xl p-1.5">
-        <button onClick={() => setView(view === 'skills' ? 'chat' : 'skills')} className={navCls(view === 'skills')}>
-          <SkillsIcon />
-          技能
-        </button>
-        <button
-          onClick={() => setView(view === 'mcp' ? 'chat' : 'mcp')}
-          className={`mt-1 ${navCls(view === 'mcp')}`}
-        >
-          <McpIcon />
-          MCP 服务器
-        </button>
-        <button onClick={() => setView(view === 'providers' ? 'chat' : 'providers')} className={`mt-1 ${navCls(view === 'providers')}`}>
-          <ShieldIcon />
-          运营商
-        </button>
-        <button onClick={() => setView(view === 'translate' ? 'chat' : 'translate')} className={`mt-1 ${navCls(view === 'translate')}`}>
-          <LanguageIcon />
-          翻译
-        </button>
-        <button
-          onClick={() => setView(view === 'settings' ? 'chat' : 'settings')}
-          className={`mt-1 ${navCls(view === 'settings')}`}
-        >
-          <GearIcon />
-          设置
-        </button>
+          <button
+            onClick={toggleNav}
+            className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-[10px] font-medium uppercase tracking-wide text-zinc-500 transition hover:bg-white/[0.05] hover:text-zinc-300"
+            title={navCollapsed ? '展开工具栏' : '收起工具栏'}
+          >
+            <span className="flex-1">工具</span>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              className={`shrink-0 text-zinc-500 transition-transform duration-300 ease-spring ${navCollapsed ? '-rotate-90' : ''}`}
+            >
+              <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          </button>
+          {/* grid-rows 0fr↔1fr animates height without guessing a max-height;
+              the inner overflow-hidden clips the rows mid-tween. The spring
+              curve + per-item stagger give the non-linear pop. */}
+          <div
+            className={`grid transition-[grid-template-rows] duration-[520ms] ease-spring ${
+              navCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
+            }`}
+          >
+            <div className="overflow-hidden">
+              <div className="mt-1">
+                {NAV_ITEMS.map((item, i) => {
+                  const on = view === item.view
+                  return (
+                    <button
+                      key={item.view}
+                      onClick={() => setView(on ? 'chat' : item.view)}
+                      className={`${navCls(on)} ${i > 0 ? 'mt-1' : ''} transition-all duration-[440ms] ease-spring`}
+                      style={{
+                        transitionDelay: navCollapsed ? '0ms' : `${i * 55}ms`,
+                        opacity: navCollapsed ? 0 : 1,
+                        transform: navCollapsed ? 'translateY(-6px)' : 'translateY(0)'
+                      }}
+                    >
+                      <item.icon />
+                      {item.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </div>

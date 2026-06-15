@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Preferences, ComposerModel, EffortLevel, PermissionMode } from '../../shared/ipc'
+import DisclosureSelect from './DisclosureSelect'
 
 const EFFORTS: { id: EffortLevel; label: string }[] = [
   { id: 'low', label: '低' },
@@ -75,32 +76,22 @@ export default function SettingsPanel(): JSX.Element {
 
         <section>
           <label className={labelCls}>默认思考强度(effort)</label>
-          <select
+          <DisclosureSelect
             value={effort}
-            onChange={(e) => setEffort(e.target.value as EffortLevel)}
-            className={inputCls}
-          >
-            {EFFORTS.map((e) => (
-              <option key={e.id} value={e.id}>
-                {e.label}({e.id})
-              </option>
-            ))}
-          </select>
+            options={EFFORTS.map((e) => ({ value: e.id, label: `${e.label}(${e.id})` }))}
+            onChange={(v) => setEffort(v as EffortLevel)}
+            className="w-full"
+          />
         </section>
 
         <section>
           <label className={labelCls}>默认权限模式</label>
-          <select
+          <DisclosureSelect
             value={permMode}
-            onChange={(e) => setPermMode(e.target.value as PermissionMode)}
-            className={inputCls}
-          >
-            {PERMISSION_MODES.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.label}
-              </option>
-            ))}
-          </select>
+            options={PERMISSION_MODES.map((p) => ({ value: p.id, label: p.label }))}
+            onChange={(v) => setPermMode(v as PermissionMode)}
+            className="w-full"
+          />
         </section>
 
         <section>
