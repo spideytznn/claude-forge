@@ -1,7 +1,7 @@
 import { app, safeStorage } from 'electron'
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import type { Provider, Project, EffortLevel, PermissionMode, ComposerModel } from '../shared/ipc'
+import type { Provider, Project, EffortLevel, PermissionMode, ComposerModel, TranslateEngine } from '../shared/ipc'
 
 interface PersistedSettings {
   /** base64 of safeStorage-encrypted bytes */
@@ -20,6 +20,15 @@ interface PersistedSettings {
   defaultEffort?: EffortLevel
   defaultPermissionMode?: PermissionMode
   composerModels?: ComposerModel[]
+  /** --- Translate engine config (Translate panel) --- */
+  /** Which engine translateTexts() routes to. */
+  translateEngine?: TranslateEngine
+  /** Baidu app id (non-secret). */
+  baiduAppId?: string
+  /** base64 of safeStorage-encrypted Baidu secret key. */
+  baiduSecretEnc?: string
+  /** plaintext fallback when safeStorage is unavailable. */
+  baiduSecretPlain?: string
 }
 
 let cache: PersistedSettings | null = null
@@ -81,6 +90,36 @@ export function setApiKey(key: string | null): void {
   } else {
     delete s.apiKeyEnc
     delete s.apiKeyPlain
+  }
+  save(s)
+}
+
+/** Read the saved Baidu translate secret key (decrypted). Mirrors getApiKey. */
+export function getBaiduSecret(): string | null {
+  const s = load()
+  if (s.baiduSecretEnc && safeStorage.isEncryptionAvailable()) {
+    try {
+      return safeStorage.decryptString(Buffer.from(s.baiduSecretEnc, 'base64'))
+    } catch {
+      return null
+    }
+  }
+  return s.baiduSecretPlain ?? null
+}
+
+/** Persist the Baidu translate secret key (encrypted when safeStorage is up).
+ *  Pass null/empty to clear. Mirrors setApiKey. */
+export function setBaiduSecret(key: string | null): void {
+  const s = load()
+  if (key && safeStorage.isEncryptionAvailable()) {
+    s.baiduSecretEnc = safeStorage.encryptString(key).toString('base64')
+    delete s.baiduSecretPlain
+  } else if (key) {
+    s.baiduSecretPlain = key
+    delete s.baiduSecretEnc
+  } else {
+    delete s.baiduSecretEnc
+    delete s.baiduSecretPlain
   }
   save(s)
 }

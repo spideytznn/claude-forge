@@ -21,7 +21,9 @@ import {
 } from './projects'
 import { listMarketplacePlugins } from './marketplace'
 import { translateTexts } from './translate'
+import { getTranslateConfig, saveTranslateConfig, testTranslate } from './translateConfig'
 import { getPreferences, savePreferences } from './preferences'
+import * as gitModule from './git'
 import { log } from './logger'
 import type {
   StartSessionOptions,
@@ -38,7 +40,9 @@ import type {
   SkillInfo,
   MarketplacePlugin,
   Preferences,
-  PickedFile
+  PickedFile,
+  TranslateConfig,
+  TranslateTestResult
 } from '../shared/ipc'
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'])
@@ -208,6 +212,19 @@ export function registerIpc(getMainWindow: () => BrowserWindow | null): AgentBri
     translateTexts(texts)
   )
 
+  ipcMain.handle('forge:getTranslateConfig', async (): Promise<TranslateConfig> =>
+    getTranslateConfig()
+  )
+  ipcMain.handle(
+    'forge:saveTranslateConfig',
+    async (_e, cfg: TranslateConfig): Promise<TranslateConfig> => saveTranslateConfig(cfg)
+  )
+  ipcMain.handle(
+    'forge:testTranslate',
+    async (_e, appId: string, secretKey: string): Promise<TranslateTestResult> =>
+      testTranslate(appId, secretKey)
+  )
+
   ipcMain.handle('forge:getPreferences', async (): Promise<Preferences> => getPreferences())
   ipcMain.handle('forge:savePreferences', async (_e, prefs: Preferences): Promise<Preferences> =>
     savePreferences(prefs)
@@ -339,6 +356,80 @@ export function registerIpc(getMainWindow: () => BrowserWindow | null): AgentBri
     async (_e, resp: PermissionResponsePayload): Promise<void> => {
       bridge.respondPermission(resp)
     }
+  )
+
+  // --- Git integration handlers ---
+
+  ipcMain.handle('forge:gitIsRepo', async (_e, cwd: string): Promise<boolean> =>
+    gitModule.isGitRepo(cwd)
+  )
+
+  ipcMain.handle('forge:gitGetCurrentBranch', async (_e, cwd: string): Promise<string | null> =>
+    gitModule.getCurrentBranch(cwd)
+  )
+
+  ipcMain.handle('forge:gitListBranches', async (_e, cwd: string) =>
+    gitModule.listBranches(cwd)
+  )
+
+  ipcMain.handle('forge:gitCheckoutBranch', async (_e, cwd: string, branch: string): Promise<void> => {
+    await gitModule.checkoutBranch(cwd, branch)
+  })
+
+  ipcMain.handle('forge:gitCreateBranch', async (_e, cwd: string, name: string): Promise<void> => {
+    await gitModule.createBranch(cwd, name)
+  })
+
+  ipcMain.handle('forge:gitDeleteBranch', async (_e, cwd: string, name: string, force?: boolean): Promise<void> => {
+    await gitModule.deleteBranch(cwd, name, force)
+  })
+
+  ipcMain.handle('forge:gitPull', async (_e, cwd: string) =>
+    gitModule.pull(cwd)
+  )
+
+  ipcMain.handle('forge:gitPush', async (_e, cwd: string) =>
+    gitModule.push(cwd)
+  )
+
+  ipcMain.handle('forge:gitStatus', async (_e, cwd: string) =>
+    gitModule.getStatus(cwd)
+  )
+
+  ipcMain.handle('forge:gitAdd', async (_e, cwd: string, paths?: string[]): Promise<void> => {
+    await gitModule.add(cwd, paths)
+  })
+
+  ipcMain.handle('forge:gitCommit', async (_e, cwd: string, message: string): Promise<void> => {
+    await gitModule.commit(cwd, message)
+  })
+
+  ipcMain.handle('forge:gitLog', async (_e, cwd: string, limit?: number) =>
+    gitModule.logCommits(cwd, limit)
+  )
+
+  ipcMain.handle('forge:gitStash', async (_e, cwd: string, action?: string, message?: string): Promise<string> =>
+    gitModule.stash(cwd, action, message)
+  )
+
+  ipcMain.handle('forge:gitRevert', async (_e, cwd: string, commitHash: string): Promise<void> => {
+    await gitModule.revert(cwd, commitHash)
+  })
+
+  ipcMain.handle('forge:gitDiff', async (_e, cwd: string, opts?: { staged?: boolean; paths?: string[] }) =>
+    gitModule.diff(cwd, opts)
+  )
+
+  ipcMain.handle('forge:gitFetch', async (_e, cwd: string) =>
+    gitModule.fetch(cwd)
+  )
+
+  ipcMain.handle('forge:gitReset', async (_e, cwd: string, paths?: string[]): Promise<void> => {
+    await gitModule.reset(cwd, paths)
+  })
+
+  ipcMain.handle('forge:gitPushUpstream', async (_e, cwd: string) =>
+    gitModule.pushUpstream(cwd)
   )
 
   return bridge

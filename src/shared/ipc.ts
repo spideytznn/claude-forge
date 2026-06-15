@@ -181,6 +181,32 @@ export interface Preferences {
   composerModels?: ComposerModel[]
 }
 
+/** Which engine translateTexts() routes to. 'llm' = active provider's
+ *  /v1/messages; 'baidu' = Baidu generic-translate API (avoids model rate limits). */
+export type TranslateEngine = 'llm' | 'baidu'
+
+/** Baidu translate credentials. appId is non-secret; secretKey is the API key
+ *  (encrypted at rest via safeStorage, returned plaintext to the renderer for
+ *  editing — same stance as provider tokens). */
+export interface BaiduTranslateConfig {
+  appId: string
+  secretKey: string
+}
+
+export interface TranslateConfig {
+  engine: TranslateEngine
+  baidu: BaiduTranslateConfig
+}
+
+/** Result of a translate-connection test (Baidu credentials check). */
+export interface TranslateTestResult {
+  ok: boolean
+  /** The translated sample text on success. */
+  translated?: string
+  /** Human-readable failure reason on error. */
+  error?: string
+}
+
 /** A user/assistant message from a past session transcript (for the sidebar resume view). */
 export interface HistoryMessage {
   type: 'user' | 'assistant'
@@ -188,6 +214,33 @@ export interface HistoryMessage {
   session_id: string
   message: unknown
   parent_tool_use_id: string | null
+}
+
+/** --- Git integration types --- */
+export interface GitBranchInfo {
+  name: string
+  current: boolean
+}
+
+export interface GitCommit {
+  hash: string
+  shortHash: string
+  message: string
+  author: string
+  date: number // ms since epoch
+}
+
+export interface GitStatus {
+  staged: string[]
+  unstaged: string[]
+  untracked: string[]
+  /** Files in a merge/rebase conflict (UU/AA/DD/…). */
+  conflicts: string[]
+  clean: boolean
+  /** Commits local has that upstream doesn't; null when there is no upstream. */
+  ahead: number | null
+  /** Commits upstream has that local doesn't; null when there is no upstream. */
+  behind: number | null
 }
 
 /** Surface exposed on window.api via the preload contextBridge. */
@@ -263,6 +316,14 @@ export interface ForgeApi {
    *  one translation per input (empty string for any that failed). */
   translateTexts(texts: string[]): Promise<string[]>
 
+  /** --- Translate engine config (Translate panel) --- */
+  /** Read the current translation engine + Baidu credentials. */
+  getTranslateConfig(): Promise<TranslateConfig>
+  /** Persist the engine choice + Baidu credentials (secretKey encrypted at rest). */
+  saveTranslateConfig(cfg: TranslateConfig): Promise<TranslateConfig>
+  /** Test Baidu credentials by translating a sample — does not persist. */
+  testTranslate(appId: string, secretKey: string): Promise<TranslateTestResult>
+
   /** --- Preferences (Settings panel) --- */
   getPreferences(): Promise<Preferences>
   savePreferences(prefs: Preferences): Promise<Preferences>
@@ -276,6 +337,30 @@ export interface ForgeApi {
   setApiKey(key: string): Promise<void>
 
   respondPermission(resp: PermissionResponsePayload): Promise<void>
+
+  /** --- Git integration --- */
+  isGitRepo(cwd: string): Promise<boolean>
+  gitGetCurrentBranch(cwd: string): Promise<string | null>
+  gitListBranches(cwd: string): Promise<GitBranchInfo[]>
+  gitCheckoutBranch(cwd: string, branch: string): Promise<void>
+  gitCreateBranch(cwd: string, name: string): Promise<void>
+  gitDeleteBranch(cwd: string, name: string, force?: boolean): Promise<void>
+  gitPull(cwd: string): Promise<{ stdout: string; stderr: string }>
+  gitPush(cwd: string): Promise<{ stdout: string; stderr: string }>
+  gitStatus(cwd: string): Promise<GitStatus>
+  gitAdd(cwd: string, paths?: string[]): Promise<void>
+  gitCommit(cwd: string, message: string): Promise<void>
+  gitLog(cwd: string, limit?: number): Promise<GitCommit[]>
+  gitStash(cwd: string, action?: string, message?: string): Promise<string>
+  gitRevert(cwd: string, commitHash: string): Promise<void>
+  /** Unified diff text. staged=true → already-staged changes; paths → limit to files. */
+  gitDiff(cwd: string, opts?: { staged?: boolean; paths?: string[] }): Promise<string>
+  /** git fetch (update remote-tracking refs, no merge). */
+  gitFetch(cwd: string): Promise<{ stdout: string; stderr: string }>
+  /** Unstage paths (omit for all). */
+  gitReset(cwd: string, paths?: string[]): Promise<void>
+  /** Push current branch and set upstream (git push -u origin HEAD). */
+  gitPushUpstream(cwd: string): Promise<{ stdout: string; stderr: string }>
 
   onAgentEvent(cb: (e: AgentEvent) => void): () => void
   onPermissionRequest(cb: (r: PermissionRequestPayload) => void): () => void

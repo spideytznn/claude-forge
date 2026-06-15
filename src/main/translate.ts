@@ -1,4 +1,6 @@
 import { getActiveProvider } from './providers'
+import { getBaiduCreds, getTranslateEngine } from './translateConfig'
+import { translateViaBaidu } from './baidu'
 import { log } from './logger'
 
 /**
@@ -25,7 +27,8 @@ function parseArray(text: string): string[] {
   return []
 }
 
-export async function translateTexts(texts: string[]): Promise<string[]> {
+/** LLM engine: batch-translate via the active provider's /v1/messages. */
+async function translateTextsLlm(texts: string[]): Promise<string[]> {
   const deduped = Array.from(new Set(texts.filter((t) => t && t.trim())))
   if (deduped.length === 0) return []
 
@@ -70,4 +73,19 @@ export async function translateTexts(texts: string[]): Promise<string[]> {
     if (translated[i]) map.set(t, translated[i])
   })
   return texts.map((t) => map.get(t) ?? '')
+}
+
+/**
+ * Batch-translate texts EN→ZH via the configured engine. Routes to Baidu when
+ * the user selected it (avoids LLM rate limits); otherwise the active provider.
+ * Signature is unchanged from the original LLM-only impl, so SkillsPanel keeps
+ * working and degrades gracefully on error.
+ */
+export async function translateTexts(texts: string[]): Promise<string[]> {
+  if (getTranslateEngine() === 'baidu') {
+    const creds = getBaiduCreds()
+    if (!creds) throw new Error('已选择百度翻译,但未配置 appId / secretKey')
+    return translateViaBaidu(texts, creds.appId, creds.secretKey)
+  }
+  return translateTextsLlm(texts)
 }

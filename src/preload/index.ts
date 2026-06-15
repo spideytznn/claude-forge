@@ -3,7 +3,10 @@ import type {
   ForgeApi,
   AgentEvent,
   PermissionRequestPayload,
-  PermissionResponsePayload
+  PermissionResponsePayload,
+  GitBranchInfo,
+  GitCommit,
+  GitStatus
 } from '../shared/ipc'
 
 const api: ForgeApi = {
@@ -35,6 +38,11 @@ const api: ForgeApi = {
   listMarketplacePlugins: () => ipcRenderer.invoke('forge:listMarketplacePlugins'),
   translateTexts: (texts) => ipcRenderer.invoke('forge:translateTexts', texts),
 
+  getTranslateConfig: () => ipcRenderer.invoke('forge:getTranslateConfig'),
+  saveTranslateConfig: (cfg) => ipcRenderer.invoke('forge:saveTranslateConfig', cfg),
+  testTranslate: (appId, secretKey) =>
+    ipcRenderer.invoke('forge:testTranslate', appId, secretKey),
+
   getPreferences: () => ipcRenderer.invoke('forge:getPreferences'),
   savePreferences: (prefs) => ipcRenderer.invoke('forge:savePreferences', prefs),
 
@@ -63,6 +71,26 @@ const api: ForgeApi = {
   setApiKey: (key) => ipcRenderer.invoke('forge:setApiKey', key),
 
   respondPermission: (resp) => ipcRenderer.invoke('forge:respondPermission', resp),
+
+  // --- Git integration ---
+  isGitRepo: (cwd) => ipcRenderer.invoke('forge:gitIsRepo', cwd),
+  gitGetCurrentBranch: (cwd) => ipcRenderer.invoke('forge:gitGetCurrentBranch', cwd),
+  gitListBranches: (cwd) => ipcRenderer.invoke('forge:gitListBranches', cwd),
+  gitCheckoutBranch: (cwd, branch) => ipcRenderer.invoke('forge:gitCheckoutBranch', cwd, branch),
+  gitCreateBranch: (cwd, name) => ipcRenderer.invoke('forge:gitCreateBranch', cwd, name),
+  gitDeleteBranch: (cwd, name, force) => ipcRenderer.invoke('forge:gitDeleteBranch', cwd, name, force),
+  gitPull: (cwd) => ipcRenderer.invoke('forge:gitPull', cwd),
+  gitPush: (cwd) => ipcRenderer.invoke('forge:gitPush', cwd),
+  gitStatus: (cwd) => ipcRenderer.invoke('forge:gitStatus', cwd),
+  gitAdd: (cwd, paths) => ipcRenderer.invoke('forge:gitAdd', cwd, paths),
+  gitCommit: (cwd, message) => ipcRenderer.invoke('forge:gitCommit', cwd, message),
+  gitLog: (cwd, limit) => ipcRenderer.invoke('forge:gitLog', cwd, limit),
+  gitStash: (cwd, action, message) => ipcRenderer.invoke('forge:gitStash', cwd, action, message),
+  gitRevert: (cwd, commitHash) => ipcRenderer.invoke('forge:gitRevert', cwd, commitHash),
+  gitDiff: (cwd, opts) => ipcRenderer.invoke('forge:gitDiff', cwd, opts),
+  gitFetch: (cwd) => ipcRenderer.invoke('forge:gitFetch', cwd),
+  gitReset: (cwd, paths) => ipcRenderer.invoke('forge:gitReset', cwd, paths),
+  gitPushUpstream: (cwd) => ipcRenderer.invoke('forge:gitPushUpstream', cwd),
 
   onAgentEvent: (cb) => {
     const listener = (_event: Electron.IpcRendererEvent, payload: AgentEvent): void => cb(payload)

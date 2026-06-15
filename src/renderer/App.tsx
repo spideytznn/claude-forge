@@ -6,11 +6,13 @@ import Sidebar from './components/Sidebar'
 import Transcript from './components/Transcript'
 import Composer from './components/Composer'
 import StatusBar from './components/StatusBar'
+import GitToolbar from './components/GitToolbar'
 import PermissionModal from './components/PermissionModal'
 import McpPanel from './components/McpPanel'
 import ProvidersPanel from './components/ProvidersPanel'
 import SkillsPanel from './components/SkillsPanel'
 import SettingsPanel from './components/SettingsPanel'
+import TranslatePanel from './components/TranslatePanel'
 import ErrorBoundary from './components/ErrorBoundary'
 
 function WindowTitlebar(): JSX.Element {
@@ -122,8 +124,13 @@ export default function App(): JSX.Element {
               <div className="min-h-0 flex-1 overflow-hidden">
                 <SettingsPanel />
               </div>
+            ) : view === 'translate' ? (
+              <div className="min-h-0 flex-1 overflow-hidden">
+                <TranslatePanel />
+              </div>
             ) : (
               <>
+                <GitToolbar />
                 <div className="min-h-0 flex-1 overflow-hidden">
                   <Transcript />
                 </div>

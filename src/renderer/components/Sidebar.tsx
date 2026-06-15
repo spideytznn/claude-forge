@@ -122,6 +122,20 @@ const GearIcon = (): JSX.Element => (
   </svg>
 )
 
+
+
+const LanguageIcon = (): JSX.Element => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+    <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.6" />
+    <path d="M3 12h18" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    <path
+      d="M12 3c-3 3-4.5 6-4.5 9s1.5 6 4.5 9c3-3 4.5-6 4.5-9s-1.5-6-4.5-9z"
+      stroke="currentColor"
+      strokeWidth="1.4"
+    />
+  </svg>
+)
+
 export default function Sidebar(): JSX.Element {
   const meta = useSessionStore((s) => s.meta)
   const sessions = useSessionStore((s) => s.sessions)
@@ -220,6 +234,13 @@ export default function Sidebar(): JSX.Element {
           title="运营商"
         >
           <ShieldIcon />
+        </button>
+        <button
+          onClick={() => setView('translate')}
+          className={`mt-1 ${iconBtn(view === 'translate')}`}
+          title="翻译"
+        >
+          <LanguageIcon />
         </button>
         <button
           onClick={() => setView('settings')}
@@ -418,6 +439,10 @@ export default function Sidebar(): JSX.Element {
         <button onClick={() => setView(view === 'providers' ? 'chat' : 'providers')} className={`mt-1 ${navCls(view === 'providers')}`}>
           <ShieldIcon />
           运营商
+        </button>
+        <button onClick={() => setView(view === 'translate' ? 'chat' : 'translate')} className={`mt-1 ${navCls(view === 'translate')}`}>
+          <LanguageIcon />
+          翻译
         </button>
         <button
           onClick={() => setView(view === 'settings' ? 'chat' : 'settings')}
