@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import { useUiStore, type View } from '../store/uiStore'
+import Collapse from './Collapse'
 import ProjectSwitcher from './ProjectSwitcher'
 import type { Provider, SessionListItem } from '../../shared/ipc'
 
@@ -195,7 +196,7 @@ export default function Sidebar(): JSX.Element {
         on ? 'glass-active text-zinc-100' : 'text-zinc-400 hover:bg-white/[0.06] hover:text-zinc-200'
       }`
     return (
-      <div className="sidebar-collapse glass-sidebar flex w-14 shrink-0 flex-col items-center rounded-[18px] border py-3">
+      <div key="sidebar-collapsed" className="sidebar-collapse glass-sidebar flex w-14 shrink-0 flex-col items-center rounded-[18px] border py-3">
         <button
           onClick={toggleSidebar}
           className={iconBtn(false)}
@@ -273,7 +274,7 @@ export default function Sidebar(): JSX.Element {
     }`
 
   return (
-    <div className="sidebar-expand glass-sidebar flex w-64 shrink-0 flex-col rounded-[18px] border">
+    <div key="sidebar-expanded" className="sidebar-expand glass-sidebar flex w-64 shrink-0 flex-col rounded-[18px] border">
       {/* brand + collapse */}
       <div className="flex items-center gap-2 px-4 pt-4">
         <div className="accent-soft-button flex h-8 w-8 items-center justify-center rounded-xl text-sm font-bold text-white">
@@ -459,34 +460,28 @@ export default function Sidebar(): JSX.Element {
           {/* grid-rows 0fr↔1fr animates height without guessing a max-height;
               the inner overflow-hidden clips the rows mid-tween. The spring
               curve + per-item stagger give the non-linear pop. */}
-          <div
-            className={`grid transition-[grid-template-rows] duration-[520ms] ease-spring ${
-              navCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]'
-            }`}
-          >
-            <div className="overflow-hidden">
-              <div className="mt-1">
-                {NAV_ITEMS.map((item, i) => {
-                  const on = view === item.view
-                  return (
-                    <button
-                      key={item.view}
-                      onClick={() => setView(on ? 'chat' : item.view)}
-                      className={`${navCls(on)} ${i > 0 ? 'mt-1' : ''} transition-all duration-[440ms] ease-spring`}
-                      style={{
-                        transitionDelay: navCollapsed ? '0ms' : `${i * 55}ms`,
-                        opacity: navCollapsed ? 0 : 1,
-                        transform: navCollapsed ? 'translateY(-6px)' : 'translateY(0)'
-                      }}
-                    >
-                      <item.icon />
-                      {item.label}
-                    </button>
-                  )
-                })}
-              </div>
+          <Collapse open={!navCollapsed}>
+            <div className="mt-1">
+              {NAV_ITEMS.map((item, i) => {
+                const on = view === item.view
+                return (
+                  <button
+                    key={item.view}
+                    onClick={() => setView(on ? 'chat' : item.view)}
+                    className={`${navCls(on)} ${i > 0 ? 'mt-1' : ''} transition-all duration-[440ms] ease-spring`}
+                    style={{
+                      transitionDelay: navCollapsed ? '0ms' : `${i * 55}ms`,
+                      opacity: navCollapsed ? 0 : 1,
+                      transform: navCollapsed ? 'translateY(-6px)' : 'translateY(0)'
+                    }}
+                  >
+                    <item.icon />
+                    {item.label}
+                  </button>
+                )
+              })}
             </div>
-          </div>
+          </Collapse>
         </div>
       </div>
     </div>

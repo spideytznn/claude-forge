@@ -14,6 +14,7 @@ import SkillsPanel from './components/SkillsPanel'
 import SettingsPanel from './components/SettingsPanel'
 import TranslatePanel from './components/TranslatePanel'
 import ErrorBoundary from './components/ErrorBoundary'
+import { useApplyAppearanceSettings } from './store/appearanceStore'
 
 function WindowTitlebar(): JSX.Element {
   return (
@@ -55,6 +56,8 @@ function WindowTitlebar(): JSX.Element {
 }
 
 export default function App(): JSX.Element {
+  useApplyAppearanceSettings()
+
   const meta = useSessionStore((s) => s.meta)
   const bootstrapped = useSessionStore((s) => s.bootstrapped)
   const bootstrap = useSessionStore((s) => s.bootstrap)

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Preferences, ComposerModel, EffortLevel, PermissionMode } from '../../shared/ipc'
+import { useAppearanceStore } from '../store/appearanceStore'
 import DisclosureSelect from './DisclosureSelect'
 
 const EFFORTS: { id: EffortLevel; label: string }[] = [
@@ -18,6 +19,42 @@ const PERMISSION_MODES: { id: PermissionMode; label: string }[] = [
   { id: 'auto', label: '自动' }
 ]
 
+function RangeControl({
+  label,
+  value,
+  min,
+  max,
+  step,
+  display,
+  onChange
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  display: string
+  onChange: (value: number) => void
+}): JSX.Element {
+  return (
+    <label className="block">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <span className="text-xs text-zinc-500">{label}</span>
+        <span className="font-mono text-xs text-zinc-400">{display}</span>
+      </div>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(event) => onChange(Number(event.target.value))}
+        className="h-2 w-full cursor-pointer accent-[#df765f]"
+      />
+    </label>
+  )
+}
+
 export default function SettingsPanel(): JSX.Element {
   const [effort, setEffort] = useState<EffortLevel>('high')
   const [permMode, setPermMode] = useState<PermissionMode>('default')
@@ -25,6 +62,9 @@ export default function SettingsPanel(): JSX.Element {
   const [loaded, setLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [savedAt, setSavedAt] = useState(false)
+  const appearance = useAppearanceStore((s) => s.settings)
+  const updateAppearance = useAppearanceStore((s) => s.updateSetting)
+  const resetAppearance = useAppearanceStore((s) => s.reset)
 
   useEffect(() => {
     void window.api.getPreferences().then((p) => {
@@ -73,6 +113,48 @@ export default function SettingsPanel(): JSX.Element {
     <div className="h-full overflow-y-auto bg-bg-base">
       <div className="mx-auto max-w-2xl space-y-6 px-6 py-6">
         <h1 className="text-lg font-semibold text-zinc-100">设置</h1>
+
+        <section className="glass-panel-soft rounded-2xl p-4">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold text-zinc-200">个性化</h2>
+            <button
+              type="button"
+              onClick={resetAppearance}
+              className="rounded-lg px-2 py-1 text-xs text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-300"
+            >
+              重置
+            </button>
+          </div>
+          <div className="space-y-4">
+            <RangeControl
+              label="动画速度"
+              value={appearance.motionSpeed}
+              min={70}
+              max={150}
+              step={5}
+              display={`${appearance.motionSpeed}%`}
+              onChange={(value) => updateAppearance('motionSpeed', value)}
+            />
+            <RangeControl
+              label="玻璃不透明度"
+              value={appearance.glassOpacity}
+              min={65}
+              max={100}
+              step={1}
+              display={`${appearance.glassOpacity}%`}
+              onChange={(value) => updateAppearance('glassOpacity', value)}
+            />
+            <RangeControl
+              label="雾化程度"
+              value={appearance.frost}
+              min={0}
+              max={100}
+              step={1}
+              display={`${appearance.frost}%`}
+              onChange={(value) => updateAppearance('frost', value)}
+            />
+          </div>
+        </section>
 
         <section>
           <label className={labelCls}>默认思考强度(effort)</label>

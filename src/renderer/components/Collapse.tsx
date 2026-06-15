@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 /** Height-only collapse via `grid-rows 0fr↔1fr` (no max-height guessing). The
  *  inner overflow-hidden clips children mid-tween. Always mounted, so BOTH
@@ -14,13 +14,26 @@ export default function Collapse({
   children: ReactNode
   className?: string
 }): JSX.Element {
+  const previousOpen = useRef(open)
+  const [motion, setMotion] = useState<'opening' | 'closing' | null>(null)
+
+  useEffect(() => {
+    if (previousOpen.current === open) return
+
+    setMotion(open ? 'opening' : 'closing')
+    previousOpen.current = open
+
+    const timeout = window.setTimeout(() => setMotion(null), 1000)
+    return () => window.clearTimeout(timeout)
+  }, [open])
+
   return (
     <div
-      className={`grid transition-[grid-template-rows] duration-[420ms] ease-spring ${
+      className={`liquid-collapse grid ${
         open ? 'grid-rows-[1fr]' : 'grid-rows-[0fr]'
-      } ${className ?? ''}`}
+      } ${open ? 'is-open' : ''} ${motion ? `is-${motion}` : ''} ${className ?? ''}`}
     >
-      <div className="min-h-0 overflow-hidden">{children}</div>
+      <div className="liquid-collapse-body min-h-0 overflow-hidden">{children}</div>
     </div>
   )
 }
