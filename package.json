@@ -1,5 +1,5 @@
 {
-  "name": "claude-forge",
+  "name": "forge",
   "version": "0.2.3",
   "description": "A desktop client for Claude Agent on Windows",
   "main": "./out/main/index.js",
