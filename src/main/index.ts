@@ -7,6 +7,14 @@ let mainWindow: BrowserWindow | null = null
 
 const WINDOW_ACCENT_COLOR = '#DF765F'
 const WINDOW_BACKGROUND_COLOR = '#00000000'
+// Native acrylic paints the rectangular HWND on Windows; CSS owns the rounded glass shell.
+const WINDOWS_BACKGROUND_MATERIAL = 'none'
+
+if (process.platform === 'win32') {
+  app.commandLine.appendSwitch('enable-gpu-rasterization')
+  app.commandLine.appendSwitch('enable-zero-copy')
+  app.commandLine.appendSwitch('ignore-gpu-blocklist')
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -35,9 +43,10 @@ function createWindow(): void {
   mainWindow.on('closed', () => {
     mainWindow = null
   })
+
   if (process.platform === 'win32') {
     mainWindow.setAccentColor(WINDOW_ACCENT_COLOR)
-    mainWindow.setBackgroundMaterial('none')
+    mainWindow.setBackgroundMaterial(WINDOWS_BACKGROUND_MATERIAL)
     mainWindow.setBackgroundColor(WINDOW_BACKGROUND_COLOR)
   }
 
@@ -65,6 +74,14 @@ app.whenReady().then(() => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
+  })
+})
+
+app.on('gpu-info-update', () => {
+  if (app.isPackaged) return
+  console.info('[gpu]', {
+    hardwareAcceleration: app.isHardwareAccelerationEnabled(),
+    features: app.getGPUFeatureStatus()
   })
 })
 
