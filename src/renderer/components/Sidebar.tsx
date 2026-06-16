@@ -176,8 +176,6 @@ export default function Sidebar(): JSX.Element {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editText, setEditText] = useState('')
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
-  const [sidebarContentReady, setSidebarContentReady] = useState(true)
-  const sidebarReadyFrameRef = useRef<number | null>(null)
   const sidebarMotionTimeoutRef = useRef<number | null>(null)
   const sessionListRef = useRef<HTMLDivElement | null>(null)
   const visibleSessionIdsRef = useRef<Set<string>>(new Set())
@@ -200,10 +198,6 @@ export default function Sidebar(): JSX.Element {
   }, [meta?.sessionId])
 
   const clearSidebarMotionTimers = (): void => {
-    if (sidebarReadyFrameRef.current !== null) {
-      window.cancelAnimationFrame(sidebarReadyFrameRef.current)
-      sidebarReadyFrameRef.current = null
-    }
     if (sidebarMotionTimeoutRef.current !== null) {
       window.clearTimeout(sidebarMotionTimeoutRef.current)
       sidebarMotionTimeoutRef.current = null
@@ -213,13 +207,6 @@ export default function Sidebar(): JSX.Element {
   const prepareSidebarMotion = (): void => {
     clearSidebarMotionTimers()
     document.documentElement.classList.add('sidebar-motion')
-    setSidebarContentReady(false)
-    sidebarReadyFrameRef.current = window.requestAnimationFrame(() => {
-      sidebarReadyFrameRef.current = window.requestAnimationFrame(() => {
-        sidebarReadyFrameRef.current = null
-        setSidebarContentReady(true)
-      })
-    })
     sidebarMotionTimeoutRef.current = window.setTimeout(() => {
       sidebarMotionTimeoutRef.current = null
       document.documentElement.classList.remove('sidebar-motion')
@@ -421,11 +408,7 @@ export default function Sidebar(): JSX.Element {
           F
         </div>
         <div className="mt-2">
-          {sidebarContentReady ? (
-            <ProjectSwitcher collapsed />
-          ) : (
-            <div className="h-9 w-9 rounded-xl bg-white/[0.035]" />
-          )}
+          <ProjectSwitcher collapsed />
         </div>
         <button
           onClick={() => {
@@ -514,13 +497,7 @@ export default function Sidebar(): JSX.Element {
       </div>
 
       {/* project switcher + new chat + provider */}
-      <div
-        className={`sidebar-deferred-content space-y-3 px-4 pb-4 pt-3.5 ${
-          sidebarContentReady ? 'is-ready' : ''
-        }`}
-      >
-        {sidebarContentReady ? (
-          <>
+      <div className="sidebar-deferred-content is-ready space-y-3 px-4 pb-4 pt-3.5">
         <ProjectSwitcher collapsed={false} />
         <button
           onClick={() => {
@@ -531,13 +508,6 @@ export default function Sidebar(): JSX.Element {
         >
           + 新建对话
         </button>
-          </>
-        ) : (
-          <>
-            <div className="h-8 rounded-xl bg-white/[0.035]" />
-            <div className="h-10 rounded-[14px] bg-white/[0.04]" />
-          </>
-        )}
       </div>
 
       {/* session list label */}
@@ -558,9 +528,7 @@ export default function Sidebar(): JSX.Element {
       <div
         ref={sessionListRef}
         onScroll={handleSessionListScroll}
-        className={`sidebar-deferred-content min-h-0 flex-1 overflow-y-auto px-3 pb-3 ${
-          sidebarContentReady ? 'is-ready' : ''
-        }`}
+        className="sidebar-deferred-content is-ready min-h-0 flex-1 overflow-y-auto px-3 pb-3"
       >
         {loading && sessions.length === 0 && (
           <div className="px-2 py-3 text-xs text-zinc-600">加载中…</div>
@@ -678,14 +646,7 @@ export default function Sidebar(): JSX.Element {
       </div>
 
       {/* footer nav — collapsible tool tabs */}
-      <div
-        className={`sidebar-deferred-content px-3 pb-4 pt-2 ${
-          sidebarContentReady ? 'is-ready' : ''
-        }`}
-      >
-        {!sidebarContentReady ? (
-          <div className="glass-panel-soft h-12 rounded-2xl p-1.5" />
-        ) : (
+      <div className="sidebar-deferred-content is-ready px-3 pb-4 pt-2">
         <div className="glass-panel-soft rounded-2xl p-1.5">
           <button
             onClick={toggleNav}
@@ -731,7 +692,6 @@ export default function Sidebar(): JSX.Element {
             </div>
           </Collapse>
         </div>
-        )}
       </div>
     </div>
   )

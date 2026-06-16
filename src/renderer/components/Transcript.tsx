@@ -183,6 +183,7 @@ export default function Transcript(): JSX.Element {
   const items = useSessionStore((s) => s.items)
   const sessionKey = useSessionStore((s) => s.meta?.sessionId ?? '')
   const running = useSessionStore((s) => s.status.running)
+  const starting = useSessionStore((s) => s.starting)
   const compacting = useSessionStore((s) => s.status.compacting)
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const highlightTimeoutRef = useRef<number | null>(null)
@@ -244,6 +245,26 @@ export default function Transcript(): JSX.Element {
   }, [sessionKey])
 
   if (items.length === 0) {
+    // Starting a fresh/resumed session: show a loader so the cleared transcript
+    // never reads as "stuck" while the bridge spawns. Falls through to the
+    // welcome screen once idle.
+    if (starting) {
+      return (
+        <div className="transcript-scroll h-full overflow-y-auto">
+          <div className="mx-auto flex min-h-full max-w-5xl flex-col items-center justify-center px-6 py-6 text-center">
+            <div className="glass-panel mb-5 flex h-16 w-16 items-center justify-center rounded-[18px] text-zinc-100 shadow-[0_0_34px_rgba(94,168,255,0.18)]">
+              <TerminalGlyph />
+            </div>
+            <div className="mb-3 flex items-center gap-1.5">
+              <span className="git-loading-dot" />
+              <span className="git-loading-dot [animation-delay:90ms]" />
+              <span className="git-loading-dot [animation-delay:180ms]" />
+            </div>
+            <p className="text-sm text-zinc-500">正在启动会话…</p>
+          </div>
+        </div>
+      )
+    }
     return (
       <div className="transcript-scroll h-full overflow-y-auto">
         <div className="mx-auto flex min-h-full max-w-5xl flex-col items-center justify-center px-6 py-6 text-center">

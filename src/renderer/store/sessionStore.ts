@@ -609,12 +609,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   async switchProject(path: string) {
     if (get().starting) return
     const oldMeta = get().meta
-    await window.api.setLastProject(path)
-    const provider = await window.api.getActiveProvider()
-    const model = provider?.model ?? 'claude-opus-4-8'
     const newId = uid()
-    // Switch the UI to the new project instantly; close the old session and
-    // spawn a fresh one in the new cwd.
+    // Flip the UI to the new project BEFORE any IPC: the main view clears and
+    // enters its starting state immediately, so the click never stalls on the
+    // setLastProject / getActiveProvider round-trips. Model & permission mode
+    // are carried over from the current session as a transient — the session
+    // init event overwrites them with the real values once the bridge is up.
     set({
       starting: true,
       items: [],
@@ -624,8 +624,21 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       sessionsHasMore: false,
       status: { running: false },
       currentStreamingMsgId: null,
-      meta: { sessionId: newId, cwd: path, model, permissionMode: 'default', tools: [] }
+      meta: {
+        sessionId: newId,
+        cwd: path,
+        model: oldMeta?.model ?? 'claude-opus-4-8',
+        permissionMode: oldMeta?.permissionMode ?? 'default',
+        tools: []
+      }
     })
+    // Persist last-project + read the active provider concurrently; neither
+    // blocks the view switch (already done above), they only feed the spawn.
+    const [, provider] = await Promise.all([
+      window.api.setLastProject(path),
+      window.api.getActiveProvider()
+    ])
+    const model = provider?.model ?? oldMeta?.model ?? 'claude-opus-4-8'
     if (oldMeta?.sessionId) await window.api.closeSession(oldMeta.sessionId).catch(() => {})
     await window.api.startSession({ cwd: path, model, effort: get().effort, bridgeSessionId: newId })
     set({ starting: false })
