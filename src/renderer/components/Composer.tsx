@@ -9,7 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent
 } from 'react'
 import { useSessionStore } from '../store/sessionStore'
-import type { AgentBackendId, ComposerModel, PickedFile, EffortLevel, Provider, SkillInfo } from '../../shared/ipc'
+import type { AgentBackendId, ComposerModel, PickedFile, EffortLevel, PermissionMode, Provider, SkillInfo } from '../../shared/ipc'
 import DisclosureSelect from './DisclosureSelect'
 import { defaultModelsForAgent, modelLabelForAgent } from '../../shared/models'
 
@@ -19,6 +19,14 @@ const EFFORTS: { id: EffortLevel; label: string }[] = [
   { id: 'high', label: '高' },
   { id: 'xhigh', label: '很高' },
   { id: 'max', label: '最大' }
+]
+
+const PERMISSION_MODE_OPTIONS: { value: PermissionMode; label: string }[] = [
+  { value: 'default', label: '默认' },
+  { value: 'acceptEdits', label: '自动接受编辑' },
+  { value: 'plan', label: '计划模式' },
+  { value: 'bypassPermissions', label: '跳过权限' },
+  { value: 'auto', label: '自动' }
 ]
 
 type PromptTemplate = { command: string; label: string; text: string }
@@ -128,6 +136,7 @@ export default function Composer(): JSX.Element {
   const sendMessage = useSessionStore((s) => s.sendMessage)
   const interrupt = useSessionStore((s) => s.interrupt)
   const setModel = useSessionStore((s) => s.setModel)
+  const setPermissionMode = useSessionStore((s) => s.setPermissionMode)
   const effort = useSessionStore((s) => s.effort)
   const setEffort = useSessionStore((s) => s.setEffort)
   const pending = useSessionStore((s) => s.pendingQueue)
@@ -135,7 +144,6 @@ export default function Composer(): JSX.Element {
   const [models, setModels] = useState(defaultModelsForAgent(undefined))
   const [attachments, setAttachments] = useState<PickedFile[]>([])
   const [showTemplates, setShowTemplates] = useState(false)
-  const [includeProjectContext, setIncludeProjectContext] = useState(true)
   const [slashSkills, setSlashSkills] = useState<SkillInfo[]>([])
   const [slashLoading, setSlashLoading] = useState(false)
   const [slashError, setSlashError] = useState<string | null>(null)
@@ -521,10 +529,7 @@ export default function Composer(): JSX.Element {
     const atts = attachments
     if (!value && atts.length === 0) return
     ++attachmentActionSeqRef.current
-    const finalText =
-      includeProjectContext && meta && value
-        ? `Project context: ${meta.cwd}\n\n${value}`
-        : value
+    const finalText = value
     setText('')
     setSlashContext(null)
     setAttachments([])
@@ -755,21 +760,28 @@ export default function Composer(): JSX.Element {
                 />
               </svg>
             </button>
-            <button
-              type="button"
-              onClick={() => setIncludeProjectContext((enabled) => !enabled)}
-              className={`glass-control composer-context-toggle flex h-9 items-center justify-center rounded-xl px-2 text-xs transition ${
-                includeProjectContext ? 'is-on' : 'is-off'
-              }`}
-              title="项目上下文开关"
-            >
-              上下文
-            </button>
             <span className="composer-shortcut-hint px-2 text-[11px] text-zinc-500">
               <kbd className="font-sans text-zinc-400">Enter</kbd> 发送 ·{' '}
               <kbd className="font-sans text-zinc-400">Shift+Enter</kbd> 换行
             </span>
             <div className="composer-actions ml-auto flex items-end gap-2">
+              {meta && (
+                <DisclosureSelect
+                  value={meta.permissionMode}
+                  options={PERMISSION_MODE_OPTIONS}
+                  onChange={(v) => {
+                    if (v !== meta.permissionMode) void setPermissionMode(v as PermissionMode)
+                  }}
+                  placement="top"
+                  triggerLeading={
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="shrink-0 text-zinc-400">
+                      <path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.3-7.5 9.5-4.3-1.2-7.5-4.9-7.5-9.5V6l7.5-3z" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" />
+                      <path d="M9 12l2 2 4-4" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  }
+                  className="min-w-36"
+                />
+              )}
               {meta && (
                 <DisclosureSelect
                   value={effort}

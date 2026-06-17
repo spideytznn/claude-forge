@@ -69,6 +69,10 @@ interface SessionStore {
   effort: EffortLevel
   setEffort: (effort: EffortLevel) => Promise<void>
   setModel: (model: string) => Promise<void>
+  /** Live-switch the current session's permission mode — calls Claude Code's
+   *  query.setPermissionMode immediately so it takes effect mid-session, no
+   *  resume needed (unlike model/effort which apply lazily next message). */
+  setPermissionMode: (mode: PermissionMode) => Promise<void>
   reset: () => void
 
   /** On app start: auto-enter the last-used project if any, else leave meta null
@@ -815,6 +819,17 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (!meta) return
     if (meta.model === model) return
     set({ meta: { ...meta, model }, sessionConfigDirty: true })
+  },
+
+  async setPermissionMode(mode) {
+    const meta = get().meta
+    if (!meta) return
+    if (meta.permissionMode === mode) return
+    // Permission mode switches LIVE via the bridge (query.setPermissionMode),
+    // so it takes effect immediately rather than on the next message. Keep meta
+    // in sync optimistically; the next init event confirms the SDK's real mode.
+    set({ meta: { ...meta, permissionMode: mode } })
+    await window.api.setPermissionMode(meta.sessionId, mode).catch(() => {})
   },
 
   reset() {
