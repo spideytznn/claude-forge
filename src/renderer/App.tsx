@@ -23,7 +23,8 @@ import ClosePromptDialog from './components/ClosePromptDialog'
 import UpdateAvailableDialog from './components/UpdateAvailableDialog'
 import { useApplyAppearanceSettings } from './store/appearanceStore'
 import { pushAgentEvent, flushAgentEvents } from './store/streamBatcher'
-import type { UpdateCheckResult } from '../shared/ipc'
+import type { Provider, UpdateCheckResult } from '../shared/ipc'
+import { emitForgeEvent, onForgeEvent } from './events'
 
 const VIEW_SWAP_DELAY_MS = 90
 const CHAT_SWAP_CLEAR_MS = 220
@@ -31,6 +32,17 @@ const SCROLLBAR_IDLE_MS = 1800
 const PREVIEW_CLOSE_MS = 720
 const CHAT_TOPBAR_COLLAPSED_KEY = 'forge.chatTopbarCollapsed.v1'
 const CHAT_TOPBAR_LAYOUT_MOTION_MS = 520
+
+function providerRuntimeKey(provider: Provider | null): string {
+  if (!provider) return ''
+  return [
+    provider.id,
+    provider.baseUrl.trim().replace(/\/+$/, ''),
+    provider.authType,
+    provider.token,
+    provider.model.trim()
+  ].join('\n')
+}
 
 const SCROLL_REVEAL_KEYS = new Set([
   'ArrowUp',
@@ -124,8 +136,8 @@ function ChatTopbarToggle({
     <button
       type="button"
       className="chat-topbar-toggle"
-      aria-label={collapsed ? '展开 Git 和 Provider 顶栏' : '折叠 Git 和 Provider 顶栏'}
-      title={collapsed ? '展开 Git 和 Provider 顶栏' : '折叠 Git 和 Provider 顶栏'}
+      aria-label={collapsed ? '展开 Git 和运营商顶栏' : '折叠 Git 和运营商顶栏'}
+      title={collapsed ? '展开 Git 和运营商顶栏' : '折叠 Git 和运营商顶栏'}
       onClick={onClick}
       tabIndex={tabIndex}
     >
@@ -335,6 +347,7 @@ export default function App(): JSX.Element {
   const transcriptAtBottomRef = useRef(true)
   const gitTopbarAutoExpandedCwdRef = useRef<string | null>(null)
   const chatTopbarLayoutMotionTimeoutRef = useRef<number | null>(null)
+  const providerRuntimeKeyRef = useRef<string | null>(null)
 
   useEffect(() => {
     chatTopbarCollapsedRef.current = chatTopbarCollapsed
@@ -415,8 +428,7 @@ export default function App(): JSX.Element {
       })
     }
     enforceWslSupport()
-    window.addEventListener('forge:wsl-support-changed', enforceWslSupport)
-    return () => window.removeEventListener('forge:wsl-support-changed', enforceWslSupport)
+    return onForgeEvent('wslSupportChanged', enforceWslSupport)
   }, [setView])
 
   useEffect(() => {
@@ -428,11 +440,11 @@ export default function App(): JSX.Element {
       })
     }
     enforceAgentBackendView()
-    window.addEventListener('forge:agent-backend-changed', enforceAgentBackendView)
-    window.addEventListener('forge:provider-changed', enforceAgentBackendView)
+    const offAgentBackend = onForgeEvent('agentBackendChanged', enforceAgentBackendView)
+    const offProvider = onForgeEvent('providerChanged', enforceAgentBackendView)
     return () => {
-      window.removeEventListener('forge:agent-backend-changed', enforceAgentBackendView)
-      window.removeEventListener('forge:provider-changed', enforceAgentBackendView)
+      offAgentBackend()
+      offProvider()
     }
   }, [setView])
 
@@ -567,6 +579,48 @@ export default function App(): JSX.Element {
     const off = window.api.onUpdateAvailable((info) => setAvailableUpdate(info))
     return off
   }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const syncProviderRuntime = async (markDirty: boolean): Promise<void> => {
+      const provider = await window.api.getActiveProvider().catch(() => null)
+      if (!alive) return
+      const previousKey = providerRuntimeKeyRef.current
+      const nextKey = providerRuntimeKey(provider)
+      providerRuntimeKeyRef.current = nextKey
+
+      if (!markDirty || previousKey === null || previousKey === nextKey || !provider) return
+      const state = useSessionStore.getState()
+      const currentMeta = state.meta
+      if (!currentMeta || currentMeta.agentBackend === 'codex') return
+      useSessionStore.setState({
+        meta: { ...currentMeta, model: provider.model },
+        sessionConfigDirty: true
+      })
+    }
+
+    const emitProviderChanged = (): void => {
+      emitForgeEvent('providerChanged')
+      emitForgeEvent('modelOptionsChanged')
+    }
+
+    const refreshProviderKey = (): void => {
+      void syncProviderRuntime(false)
+    }
+
+    void syncProviderRuntime(false)
+    const offProvider = onForgeEvent('providerChanged', refreshProviderKey)
+    const off = window.api.onProvidersChanged(() => {
+      void syncProviderRuntime(true).finally(emitProviderChanged)
+    })
+    return () => {
+      alive = false
+      off()
+      offProvider()
+    }
+  }, [])
+
   if (!bootstrapped) {
     return (
       <div className="app-shell flex h-screen flex-col overflow-hidden">

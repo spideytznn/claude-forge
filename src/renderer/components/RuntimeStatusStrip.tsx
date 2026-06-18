@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import { useUiStore } from '../store/uiStore'
 import type { RuntimeStatus } from '../../shared/ipc'
+import { onForgeEvent } from '../events'
 
 function shortVersion(version: string | undefined): string {
   if (!version) return 'Agent ?'
-  return version.replace(/^(claude(?: code)?|codex-cli)\s*/i, '').trim() || version
+  return version.replace(/^(claude(?: code)?|codex-cli|hermes agent)\s*/i, '').trim() || version
 }
 
 export default function RuntimeStatusStrip(): JSX.Element {
@@ -55,17 +56,17 @@ export default function RuntimeStatusStrip(): JSX.Element {
     }
 
     refresh()
-    window.addEventListener('forge:agent-backend-changed', refresh)
-    window.addEventListener('forge:provider-changed', refresh)
-    window.addEventListener('forge:model-options-changed', refresh)
-    window.addEventListener('forge:wsl-support-changed', refresh)
+    const offAgentBackend = onForgeEvent('agentBackendChanged', refresh)
+    const offProvider = onForgeEvent('providerChanged', refresh)
+    const offModels = onForgeEvent('modelOptionsChanged', refresh)
+    const offWslSupport = onForgeEvent('wslSupportChanged', refresh)
     return () => {
       alive = false
       if (probeTimer !== null) window.clearTimeout(probeTimer)
-      window.removeEventListener('forge:agent-backend-changed', refresh)
-      window.removeEventListener('forge:provider-changed', refresh)
-      window.removeEventListener('forge:model-options-changed', refresh)
-      window.removeEventListener('forge:wsl-support-changed', refresh)
+      offAgentBackend()
+      offProvider()
+      offModels()
+      offWslSupport()
     }
   }, [meta?.cwd, meta?.model])
 
@@ -73,12 +74,14 @@ export default function RuntimeStatusStrip(): JSX.Element {
 
   const backend = status?.backend ?? 'windows'
   const activeAgentBackend = status?.agentBackend ?? meta.agentBackend ?? 'claude-code'
-  const showProvider = activeAgentBackend !== 'codex'
+  const showProvider = activeAgentBackend === 'claude-code' || activeAgentBackend === 'hermes'
   const agentName = status?.agentName ?? 'Forge Agent'
   const providerName =
     activeAgentBackend === 'codex'
       ? 'Codex CLI'
-      : status?.provider?.name || status?.provider?.baseUrl || 'No provider'
+      : activeAgentBackend === 'hermes'
+        ? status?.provider?.name || status?.provider?.baseUrl || 'Hermes 运营商'
+        : status?.provider?.name || status?.provider?.baseUrl || '未配置运营商'
   const versionSource = status?.agentVersion ?? status?.claudeCodeVersion
   const version = versionSource ? shortVersion(versionSource) : `${agentName} ?`
   const versionTitle = status?.versionError
@@ -110,12 +113,12 @@ export default function RuntimeStatusStrip(): JSX.Element {
               if (showProvider) setView('providers')
             }}
             className={`${chip} min-w-0`}
-            title="Provider 配置"
+            title="运营商配置"
             disabled={!showProvider}
             tabIndex={showProvider ? 0 : -1}
             aria-hidden={!showProvider}
           >
-            <span className="text-zinc-600">Provider</span>
+            <span className="text-zinc-600">运营商</span>
             <span className="truncate text-zinc-300">{providerName}</span>
           </button>
         </div>

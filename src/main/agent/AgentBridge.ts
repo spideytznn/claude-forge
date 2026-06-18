@@ -15,6 +15,7 @@ import { getPreferences } from '../preferences'
 import { log } from '../logger'
 import { ClaudeCodeBackend, type AgentBackendHandlers } from './ClaudeCodeBackend'
 import { CodexBackend } from './CodexBackend'
+import { HermesBackend } from './HermesBackend'
 
 interface AgentBackendAdapter {
   readonly id: AgentBackendId
@@ -54,7 +55,8 @@ export class AgentBridge {
     }
     this.backends = {
       'claude-code': new ClaudeCodeBackend(wrappedHandlers),
-      codex: new CodexBackend(wrappedHandlers)
+      codex: new CodexBackend(wrappedHandlers),
+      hermes: new HermesBackend(wrappedHandlers)
     }
   }
 
@@ -78,7 +80,7 @@ export class AgentBridge {
   }
 
   setModel(sessionId: string, model: string): Promise<void> {
-    return this.maybeBackendForSession(sessionId)?.setModel(sessionId, model) ?? Promise.resolve()
+    return this.backendForSession(sessionId).setModel(sessionId, model)
   }
 
   setPermissionMode(sessionId: string, mode: string): Promise<void> {

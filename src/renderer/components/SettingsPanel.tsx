@@ -25,6 +25,7 @@ import {
   progressPercent
 } from '../utils/downloadFormat'
 import { defaultModelsForAgent } from '../../shared/models'
+import { emitForgeEvent, onForgeEvent } from '../events'
 
 const EFFORTS: { id: EffortLevel; label: string }[] = [
   { id: 'low', label: '低' },
@@ -289,9 +290,9 @@ export default function SettingsPanel(): JSX.Element {
       })
       setModels(prefs.composerModels ?? [])
       setClaudeBackend(prefs.claudeExecutionBackend ?? 'windows')
-      window.dispatchEvent(new Event('forge:provider-changed'))
-      window.dispatchEvent(new Event('forge:model-options-changed'))
-      window.dispatchEvent(new Event('forge:wsl-support-changed'))
+      emitForgeEvent('providerChanged')
+      emitForgeEvent('modelOptionsChanged')
+      emitForgeEvent('wslSupportChanged')
       setSavedAt(true)
       setTimeout(() => setSavedAt(false), 1500)
     } catch {
@@ -307,9 +308,9 @@ export default function SettingsPanel(): JSX.Element {
     try {
       const prefs = await window.api.savePreferences({ agentBackend: next })
       setModels(prefs.composerModels ?? [])
-      window.dispatchEvent(new Event('forge:agent-backend-changed'))
-      window.dispatchEvent(new Event('forge:provider-changed'))
-      window.dispatchEvent(new Event('forge:model-options-changed'))
+      emitForgeEvent('agentBackendChanged')
+      emitForgeEvent('providerChanged')
+      emitForgeEvent('modelOptionsChanged')
       setSavedAt(true)
       setTimeout(() => setSavedAt(false), 1500)
     } catch {
@@ -331,7 +332,7 @@ export default function SettingsPanel(): JSX.Element {
         composerModels: cleanModels
       })
       setModels(prefs.composerModels ?? cleanModels)
-      window.dispatchEvent(new Event('forge:model-options-changed'))
+      emitForgeEvent('modelOptionsChanged')
       setSavedAt(true)
       setTimeout(() => setSavedAt(false), 1500)
     } finally {
@@ -344,8 +345,10 @@ export default function SettingsPanel(): JSX.Element {
     setModels((m) => m.map((x, idx) => (idx === i ? { ...x, ...patch } : x)))
   const removeModel = (i: number): void => setModels((m) => m.filter((_, idx) => idx !== i))
   const backendLabel = claudeBackend === 'wsl' ? 'WSL' : 'Windows'
-  const modelScopeLabel = agentBackend === 'codex' ? 'Codex' : backendLabel
-  const defaultModelListLabel = agentBackend === 'codex' ? 'Codex' : 'Opus/Sonnet/Haiku'
+  const modelScopeLabel =
+    agentBackend === 'codex' ? 'Codex' : agentBackend === 'hermes' ? 'Hermes' : backendLabel
+  const defaultModelListLabel =
+    agentBackend === 'codex' ? 'Codex' : agentBackend === 'hermes' ? 'Hermes' : 'Opus/Sonnet/Haiku'
   const defaultModelCount = defaultModelsForAgent(agentBackend).length
   const agentOptions = (agentBackends.length
     ? agentBackends
@@ -395,11 +398,11 @@ export default function SettingsPanel(): JSX.Element {
     const handler = (): void => {
       void reloadPreferenceState()
     }
-    window.addEventListener('forge:close-prefs-changed', handler)
-    window.addEventListener('forge:wsl-support-changed', handler)
+    const offClosePrefs = onForgeEvent('closePrefsChanged', handler)
+    const offWslSupport = onForgeEvent('wslSupportChanged', handler)
     return () => {
-      window.removeEventListener('forge:close-prefs-changed', handler)
-      window.removeEventListener('forge:wsl-support-changed', handler)
+      offClosePrefs()
+      offWslSupport()
     }
   }, [])
 
@@ -423,8 +426,8 @@ export default function SettingsPanel(): JSX.Element {
       if (typeof next.glassGlow === 'boolean') updateAppearance('glassGlow', next.glassGlow)
     }
     await reloadPreferenceState()
-    window.dispatchEvent(new Event('forge:provider-changed'))
-    window.dispatchEvent(new Event('forge:model-options-changed'))
+    emitForgeEvent('providerChanged')
+    emitForgeEvent('modelOptionsChanged')
     setSavedAt(true)
     setTimeout(() => setSavedAt(false), 1500)
   }

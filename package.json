@@ -1,6 +1,6 @@
 {
   "name": "forge",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A desktop client for Claude Agent on Windows",
   "main": "./out/main/index.js",
   "author": "",

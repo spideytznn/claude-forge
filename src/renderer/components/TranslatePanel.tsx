@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { TranslateEngine, TranslateTestResult } from '../../shared/ipc'
+import { ToolPanelAlert, ToolPanelButton } from './ToolPanelChrome'
 
 /** Translate engine management page. Pick which engine translateTexts()
  *  routes through (LLM provider vs Baidu) and configure/test Baidu credentials. */
@@ -155,14 +156,12 @@ export default function TranslatePanel(): JSX.Element {
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              <button
-                type="button"
+              <ToolPanelButton
                 onClick={() => void runTest()}
                 disabled={testing || !appId.trim() || !secretKey.trim()}
-                className="rounded-lg border border-border-subtle bg-bg-elev px-3 py-1.5 text-xs font-medium text-zinc-200 transition hover:bg-bg-hover disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {testing ? '测试中…' : '测试连通性'}
-              </button>
+              </ToolPanelButton>
               <a
                 href="https://fanyi-api.baidu.com/"
                 target="_blank"
@@ -174,30 +173,24 @@ export default function TranslatePanel(): JSX.Element {
             </div>
 
             {testResult && (
-              <div
-                className={`rounded-lg border px-3 py-2 text-xs ${
-                  testResult.ok
-                    ? 'border-emerald-900/50 bg-emerald-950/20 text-emerald-300'
-                    : 'border-red-900/50 bg-red-950/30 text-red-300'
-                }`}
-              >
+              <ToolPanelAlert tone={testResult.ok ? 'success' : 'error'}>
                 {testResult.ok
                   ? `连通成功 · "hello world" → ${testResult.translated}`
                   : `连通失败:${testResult.error}`}
-              </div>
+              </ToolPanelAlert>
             )}
           </section>
         )}
 
         <div className="flex items-center gap-3">
-          <button
-            type="button"
+          <ToolPanelButton
+            variant="primary"
             onClick={() => void save()}
             disabled={saving}
-            className="rounded-lg bg-accent px-5 py-2 text-sm font-medium text-white transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+            className="h-9 px-5 text-sm"
           >
             {saving ? '保存中…' : '保存'}
-          </button>
+          </ToolPanelButton>
           {savedAt && <span className="text-xs text-emerald-400">已保存</span>}
         </div>
 

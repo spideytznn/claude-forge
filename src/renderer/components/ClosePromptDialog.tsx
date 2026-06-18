@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { emitForgeEvent } from '../events'
 
 interface ClosePromptDialogProps {
   open: boolean
@@ -33,7 +34,7 @@ export default function ClosePromptDialog({ open, onClose }: ClosePromptDialogPr
     await window.api.resolveClose({ minimize, remember })
     // Notify any open SettingsPanel that the persisted close-pref changed (e.g.
     // "不再提醒" was checked) so its "每次关闭都询问" toggle re-syncs.
-    window.dispatchEvent(new Event('forge:close-prefs-changed'))
+    emitForgeEvent('closePrefsChanged')
     onClose()
   }
 

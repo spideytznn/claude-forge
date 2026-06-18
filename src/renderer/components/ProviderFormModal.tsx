@@ -1,11 +1,11 @@
 import { useState } from 'react'
-import type { ClaudeExecutionBackend, Provider, ProviderAuthType } from '../../shared/ipc'
+import type { Provider, ProviderAuthType, ProviderBackend } from '../../shared/ipc'
 
 interface Props {
   /** Provider being edited, or a blank one for add mode. */
   provider: Provider
   isEdit: boolean
-  backend?: ClaudeExecutionBackend
+  backend?: ProviderBackend
   onClose: () => void
   onSaved: () => void
 }

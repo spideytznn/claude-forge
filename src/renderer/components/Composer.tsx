@@ -12,6 +12,7 @@ import { useSessionStore } from '../store/sessionStore'
 import type { AgentBackendId, ComposerModel, PickedFile, EffortLevel, PermissionMode, Provider, SkillInfo } from '../../shared/ipc'
 import DisclosureSelect from './DisclosureSelect'
 import { defaultModelsForAgent, modelLabelForAgent } from '../../shared/models'
+import { onForgeEvent } from '../events'
 
 const EFFORTS: { id: EffortLevel; label: string }[] = [
   { id: 'low', label: '低' },
@@ -71,7 +72,7 @@ interface ComposerHeightBounds {
 
 function composerHeightBoundsForViewport(viewportHeight: number): ComposerHeightBounds {
   const compact = viewportHeight < 680
-  const min = compact ? 42 : 52
+  const min = compact ? 30 : 34
   const maxByViewport = Math.floor(viewportHeight * (compact ? 0.2 : 0.24))
   const maxCap = compact ? 128 : 184
   return { min, max: Math.max(min, Math.min(maxCap, maxByViewport)) }
@@ -166,6 +167,7 @@ export default function Composer(): JSX.Element {
   const [dragActive, setDragActive] = useState(false)
   const [dropError, setDropError] = useState<string | null>(null)
   const textareaHeight = manualTextareaHeight ?? autoTextareaHeight
+  const isHermesAgent = meta?.agentBackend === 'hermes'
 
   useEffect(() => {
     heightBoundsRef.current = heightBounds
@@ -223,14 +225,15 @@ export default function Composer(): JSX.Element {
 
     const refreshModels = async (): Promise<void> => {
       const prefs = await window.api.getPreferences()
+      const usesClaudeProviders = (prefs.agentBackend ?? 'claude-code') === 'claude-code'
       const [providers, agentModels] = await Promise.all([
-        prefs.agentBackend === 'codex' ? Promise.resolve([] as Provider[]) : window.api.listProviders(),
+        usesClaudeProviders ? window.api.listProviders() : Promise.resolve([] as Provider[]),
         window.api.listAgentModels().catch(() => defaultModelsForAgent(prefs.agentBackend))
       ])
       if (!alive) return
       const defaultModels = defaultModelsForAgent(prefs.agentBackend)
       const configured =
-        prefs.agentBackend === 'codex'
+        !usesClaudeProviders
           ? agentModels.length
             ? agentModels
             : prefs.composerModels?.length
@@ -251,14 +254,14 @@ export default function Composer(): JSX.Element {
     const onModelsChanged = (): void => {
       void refreshModels()
     }
-    window.addEventListener('forge:provider-changed', onModelsChanged)
-    window.addEventListener('forge:model-options-changed', onModelsChanged)
-    window.addEventListener('forge:agent-backend-changed', onModelsChanged)
+    const offProvider = onForgeEvent('providerChanged', onModelsChanged)
+    const offModels = onForgeEvent('modelOptionsChanged', onModelsChanged)
+    const offAgentBackend = onForgeEvent('agentBackendChanged', onModelsChanged)
     return () => {
       alive = false
-      window.removeEventListener('forge:provider-changed', onModelsChanged)
-      window.removeEventListener('forge:model-options-changed', onModelsChanged)
-      window.removeEventListener('forge:agent-backend-changed', onModelsChanged)
+      offProvider()
+      offModels()
+      offAgentBackend()
     }
   }, [meta?.model])
 
@@ -424,13 +427,13 @@ export default function Composer(): JSX.Element {
     }
   }
 
-  const beginTextareaResize = (event: ReactPointerEvent<HTMLButtonElement>): void => {
+  const beginTextareaResize = (event: ReactPointerEvent<HTMLElement>): void => {
     event.preventDefault()
     event.stopPropagation()
 
     resizeCancelRef.current?.()
     const startY = event.clientY
-    const startHeight = textareaRef.current?.getBoundingClientRect().height ?? textareaHeight
+    const startHeight = textareaHeight
     let nextHeight = clampComposerHeight(startHeight, heightBoundsRef.current)
     let finished = false
 
@@ -450,8 +453,7 @@ export default function Composer(): JSX.Element {
     }
 
     const move = (moveEvent: PointerEvent): void => {
-      const delta = startY - moveEvent.clientY
-      nextHeight = clampComposerHeight(startHeight + delta, heightBoundsRef.current)
+      nextHeight = clampComposerHeight(startHeight + startY - moveEvent.clientY, heightBoundsRef.current)
       setManualTextareaHeight(nextHeight)
     }
 
@@ -602,16 +604,16 @@ export default function Composer(): JSX.Element {
           onDragLeave={onDragLeave}
           onDrop={(e) => void onDrop(e)}
         >
-          <button
-            type="button"
-            className="composer-resize-handle"
+          <div
+            className="composer-resize-zone"
+            role="separator"
+            aria-orientation="horizontal"
+            tabIndex={0}
             aria-label="调整输入框高度"
             title="拖动调整输入框高度，双击恢复自动"
             onPointerDown={beginTextareaResize}
             onDoubleClick={resetTextareaHeight}
-          >
-            <span />
-          </button>
+          />
           <div
             className={`slash-command-reveal ${slashMenuOpen ? 'is-open' : ''}`}
             style={{ height: slashPanelHeight }}
@@ -804,6 +806,8 @@ export default function Composer(): JSX.Element {
                   options={models.map((m) => ({ value: m.id, label: m.label }))}
                   onChange={(v) => void setModel(v)}
                   placement="top"
+                  disabled={isHermesAgent}
+                  title={isHermesAgent ? 'Hermes 模型由 hermes model 或 config.yaml 管理' : undefined}
                   className="min-w-36"
                 />
               )}

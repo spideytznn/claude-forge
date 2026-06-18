@@ -21,7 +21,9 @@ export default function DisclosureSelect({
   onChange,
   triggerLeading,
   className,
-  placement = 'bottom'
+  placement = 'bottom',
+  disabled = false,
+  title
 }: {
   value: string
   options: DisclosureOption[]
@@ -30,6 +32,8 @@ export default function DisclosureSelect({
   /** Extra classes on the wrapping (relative) element, e.g. a width. */
   className?: string
   placement?: 'bottom' | 'top'
+  disabled?: boolean
+  title?: string
 }): JSX.Element {
   const [open, setOpen] = useState(false)
   const [elevated, setElevated] = useState(false)
@@ -38,6 +42,12 @@ export default function DisclosureSelect({
   const label = current?.label ?? value
 
   useEffect(() => {
+    if (disabled) {
+      setOpen(false)
+      setElevated(false)
+      return
+    }
+
     if (elevationTimerRef.current !== null) {
       window.clearTimeout(elevationTimerRef.current)
       elevationTimerRef.current = null
@@ -59,7 +69,7 @@ export default function DisclosureSelect({
         elevationTimerRef.current = null
       }
     }
-  }, [open])
+  }, [disabled, open])
 
   const optionsList = (
     <Collapse open={open}>
@@ -100,7 +110,7 @@ export default function DisclosureSelect({
       <div
         className={`glass-panel-soft disclosure-select-panel absolute inset-x-0 rounded-2xl p-1.5 ${
           elevated ? 'z-[90]' : 'z-50'
-        } ${placement === 'top' ? 'bottom-0' : 'top-0'}`}
+        } ${disabled ? 'opacity-60' : ''} ${placement === 'top' ? 'bottom-0' : 'top-0'}`}
         onClick={(event) => event.stopPropagation()}
         onPointerDown={(event) => event.stopPropagation()}
       >
@@ -108,7 +118,9 @@ export default function DisclosureSelect({
         <button
           type="button"
           onClick={() => setOpen((o) => !o)}
-          className="flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-white/[0.06] hover:text-zinc-100"
+          disabled={disabled}
+          title={title}
+          className="flex w-full items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-left text-xs text-zinc-300 transition hover:bg-white/[0.06] hover:text-zinc-100 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-zinc-300"
           aria-expanded={open}
         >
           {triggerLeading}

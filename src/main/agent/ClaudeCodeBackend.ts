@@ -128,6 +128,9 @@ export class ClaudeCodeBackend {
         delete env['ANTHROPIC_API_KEY']
       }
     }
+    const selectedModel = opts.model ?? provider?.model ?? 'claude-opus-4-8'
+    log('bridge', `resolved model session=${sessionId} selected=${selectedModel} opts=${opts.model ?? '(none)'} provider=${provider?.model ?? '(none)'}`)
+    env['ANTHROPIC_MODEL'] = selectedModel
     const windowsClaude =
       !useWslClaude && process.platform === 'win32'
         ? resolveWindowsClaudeCommand(env)
@@ -137,7 +140,8 @@ export class ClaudeCodeBackend {
       cwd: opts.cwd,
       // opts.model (synced to the active provider by the renderer) wins; fall
       // back to the provider's own default, then the hard-coded default.
-      model: opts.model ?? provider?.model ?? 'claude-opus-4-8',
+      model: selectedModel,
+      settings: { model: selectedModel },
       effort: opts.effort ?? prefs.defaultEffort ?? 'high',
       thinking: { type: 'adaptive', display: 'summarized' },
       includePartialMessages: true,
@@ -174,12 +178,21 @@ export class ClaudeCodeBackend {
   private async drain(sessionId: string, q: AsyncIterable<SDKMessage>): Promise<void> {
     log('drain', `start session=${sessionId}`)
     let count = 0
+    let sawAssistant = false
+    let sawResult = false
+    let sawApiRetry = false
     try {
       for await (const msg of q) {
         count++
         const sub = (msg as { subtype?: string }).subtype
+        if (msg.type === 'assistant') sawAssistant = true
+        if (msg.type === 'result') sawResult = true
+        if (msg.type === 'system' && sub === 'api_retry') sawApiRetry = true
         let extra = ''
-        if (msg.type === 'stream_event') {
+        if (msg.type === 'system' && sub === 'init') {
+          const init = msg as { model?: string; session_id?: string }
+          extra = ` model=${init.model ?? '(none)'} sdkSession=${init.session_id ?? '(none)'}`
+        } else if (msg.type === 'stream_event') {
           const ev = (msg as { event?: { type?: string; message?: { id?: string } } }).event
           if (ev?.type === 'message_start') extra = ` msgId=${ev.message?.id}`
         } else if (msg.type === 'assistant') {
@@ -189,8 +202,12 @@ export class ClaudeCodeBackend {
         log('drain', `msg #${count} type=${msg.type}${sub ? '/' + sub : ''}${extra}`)
         this.h.onMessage(sessionId, msg)
       }
-      log('drain', `generator completed normally after ${count} msgs`)
-      this.h.onEnded(sessionId)
+      const endedError =
+        !sawResult && !sawAssistant && sawApiRetry
+          ? 'Claude Code 在多次 api_retry 后没有返回结果。请检查当前运营商、模型和网络。'
+          : undefined
+      log('drain', `generator completed normally after ${count} msgs${endedError ? ` error=${endedError}` : ''}`)
+      this.h.onEnded(sessionId, endedError)
     } catch (e) {
       log('drain', `THREW after ${count} msgs: ${e instanceof Error ? e.stack : String(e)}`)
       this.h.onEnded(sessionId, e instanceof Error ? e.message : String(e))
@@ -217,9 +234,19 @@ export class ClaudeCodeBackend {
   }
 
   async setModel(sessionId: string, model: string): Promise<void> {
-    const s = this.sessions.get(sessionId)
-    if (!s?.query) return
-    await s.query.setModel?.(model).catch(() => {})
+    const q = await this.awaitQuery(sessionId)
+    log('bridge', `set model session=${sessionId} model=${model}`)
+    if (typeof q.applyFlagSettings !== 'function') {
+      throw new Error('当前 Claude Code SDK 不支持静默模型切换。')
+    }
+    await q.applyFlagSettings({ model })
+    if (typeof q.getSettings === 'function') {
+      const settings = await q.getSettings().catch(() => null)
+      const actualModel = (settings as { model?: unknown } | null)?.model
+      if (typeof actualModel === 'string' && actualModel && actualModel !== model) {
+        throw new Error(`模型切换未生效：当前仍为 ${actualModel}`)
+      }
+    }
   }
 
   async setPermissionMode(sessionId: string, mode: string): Promise<void> {

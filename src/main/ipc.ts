@@ -16,7 +16,8 @@ import {
   saveProviderForBackend,
   deleteProviderForBackend,
   setActiveProviderForBackend,
-  saveComposerModelsProfile
+  saveComposerModelsProfile,
+  watchProviderConfigFiles
 } from './providers'
 import {
   listProjects,
@@ -53,6 +54,12 @@ import {
   listCodexSessions,
   renameCodexSession
 } from './codexHistory'
+import {
+  deleteHermesSession,
+  getHermesSessionMessages,
+  listHermesSessions,
+  renameHermesSession
+} from './hermesHistory'
 import * as gitModule from './git'
 import { log } from './logger'
 import type {
@@ -76,6 +83,7 @@ import type {
   TranslateConfig,
   TranslateTestResult,
   ClaudeExecutionBackend,
+  ProviderBackend,
   ProviderProfile,
   ProviderProfiles,
   RuntimeStatus,
@@ -338,6 +346,12 @@ export function registerIpc(
       log('ipc', `send ${channel} THREW: ${e instanceof Error ? e.message : String(e)}`)
     }
   }
+
+  const stopProviderConfigWatch = watchProviderConfigFiles((reason) => {
+    log('providers', `config changed: ${reason}`)
+    send('forge:providers-changed', { reason })
+  })
+  app.once('before-quit', stopProviderConfigWatch)
 
   const bridge = new AgentBridge({
     onMessage: (sessionId, message) => {
@@ -653,7 +667,7 @@ export function registerIpc(
   ipcMain.handle('forge:saveProvider', async (_e, p: Provider): Promise<Provider[]> => saveProvider(p))
   ipcMain.handle(
     'forge:saveProviderForBackend',
-    async (_e, backend: ClaudeExecutionBackend, p: Provider): Promise<ProviderProfile> =>
+    async (_e, backend: ProviderBackend, p: Provider): Promise<ProviderProfile> =>
       saveProviderForBackend(backend, p)
   )
   ipcMain.handle('forge:deleteProvider', async (_e, id: string): Promise<Provider[]> =>
@@ -661,7 +675,7 @@ export function registerIpc(
   )
   ipcMain.handle(
     'forge:deleteProviderForBackend',
-    async (_e, backend: ClaudeExecutionBackend, id: string): Promise<ProviderProfile> =>
+    async (_e, backend: ProviderBackend, id: string): Promise<ProviderProfile> =>
       deleteProviderForBackend(backend, id)
   )
   ipcMain.handle('forge:setActiveProvider', async (_e, id: string): Promise<void> => {
@@ -670,14 +684,14 @@ export function registerIpc(
   })
   ipcMain.handle(
     'forge:setActiveProviderForBackend',
-    async (_e, backend: ClaudeExecutionBackend, id: string): Promise<ProviderProfile> => {
+    async (_e, backend: ProviderBackend, id: string): Promise<ProviderProfile> => {
       log('ipc', `setActiveProvider backend=${backend} id=${id}`)
       return setActiveProviderForBackend(backend, id)
     }
   )
   ipcMain.handle(
     'forge:saveComposerModelsForBackend',
-    async (_e, backend: ClaudeExecutionBackend, models: ComposerModel[]): Promise<ProviderProfile> =>
+    async (_e, backend: ProviderBackend, models: ComposerModel[]): Promise<ProviderProfile> =>
       saveComposerModelsProfile(backend, models)
   )
 
@@ -709,6 +723,9 @@ export function registerIpc(
     const offset = opts?.offset && opts.offset > 0 ? opts.offset : 0
     if (currentAgentBackend() === 'codex') {
       return listCodexSessions(cwd, { limit, offset })
+    }
+    if (currentAgentBackend() === 'hermes') {
+      return listHermesSessions(cwd, { limit, offset })
     }
     const wslSupportEnabled = getPreferences().wslSupportEnabled === true
     const requestedBackend =
@@ -776,6 +793,9 @@ export function registerIpc(
       if (currentAgentBackend() === 'codex') {
         return getCodexSessionMessages(sessionId)
       }
+      if (currentAgentBackend() === 'hermes') {
+        return getHermesSessionMessages(sessionId)
+      }
       if (useWslClaudeBackend(backend ?? currentClaudeBackend())) {
         return await getWslSessionMessages(sessionId, cwd)
       }
@@ -801,6 +821,10 @@ export function registerIpc(
         renameCodexSession(sessionId, title)
         return
       }
+      if (currentAgentBackend() === 'hermes') {
+        renameHermesSession(sessionId, title)
+        return
+      }
       if (useWslClaudeBackend(backend ?? currentClaudeBackend())) {
         await renameWslSession(sessionId, title, cwd)
         return
@@ -822,6 +846,10 @@ export function registerIpc(
         deleteCodexSession(sessionId)
         return
       }
+      if (currentAgentBackend() === 'hermes') {
+        deleteHermesSession(sessionId)
+        return
+      }
       if (useWslClaudeBackend(backend ?? currentClaudeBackend())) {
         await deleteWslSession(sessionId, cwd)
         return
@@ -836,6 +864,7 @@ export function registerIpc(
     async (_e, sessionId: string, agentId: string, cwd: string): Promise<HistoryMessage[]> => {
       try {
         if (currentAgentBackend() === 'codex') return []
+        if (currentAgentBackend() === 'hermes') return []
         if (useWslClaudeBackend()) return await getWslSubagentMessages(sessionId, agentId, cwd)
         const { getSubagentMessages } = await import('@anthropic-ai/claude-agent-sdk')
         const msgs = await getSubagentMessages(sessionId, agentId, { dir: cwd, limit: 500 })

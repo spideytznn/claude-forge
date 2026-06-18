@@ -4,6 +4,7 @@ import { useSessionStore } from '../store/sessionStore'
 import { useUiStore } from '../store/uiStore'
 import type { AssistantBlock, AssistantItem, UserItem, TranscriptItem, ItemNode } from '../types'
 import MessageText from './MessageText'
+import StreamText from './StreamText'
 import ToolCallCard from './ToolCallCard'
 
 const INITIAL_HIGHLIGHT_DELAY_MS = 420
@@ -160,6 +161,8 @@ const AssistantMessage = memo(function AssistantMessage({
   depth: number
   deferHighlight?: boolean
 }): JSX.Element {
+  const isStreaming = !!item.streaming
+
   return (
     <div className={depth === 0 ? 'max-w-[92%]' : ''}>
       {item.error && (
@@ -173,14 +176,22 @@ const AssistantMessage = memo(function AssistantMessage({
           // `highlight={!item.streaming}`: skip syntax highlighting while the
           // message is still streaming (the expensive stage), apply it once on
           // the final render when streaming flips false.
-          if (block.kind === 'text')
-            return <MessageText key={i} highlight={!item.streaming && !deferHighlight}>{block.text}</MessageText>
+          if (block.kind === 'text') {
+            if (isStreaming) {
+              return (
+                <div key={i} className="stream-mask-edge">
+                  <StreamText text={block.text} streaming />
+                </div>
+              )
+            }
+            return <MessageText key={i} highlight={!deferHighlight}>{block.text}</MessageText>
+          }
           if (block.kind === 'thinking') return <ThinkingBlock key={i} text={block.text} />
           return <ToolCallCard key={i} block={block} />
         })}
-      {item.streaming && (
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-600">
-          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+      {isStreaming && (
+        <div className="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+          <span className="stream-cursor-glow" />
           输出中…
         </div>
       )}
@@ -226,7 +237,7 @@ export default function Transcript({
   const roots = useMemo(() => buildForest(items), [items])
   const scrollTuning = useMemo(
     () =>
-      agentBackend === 'codex'
+      agentBackend === 'codex' || agentBackend === 'hermes'
         ? {
             increaseViewportBy: { top: 900, bottom: 1300 },
             overscan: { main: 900, reverse: 650 }
@@ -520,7 +531,7 @@ export default function Transcript({
               {compacting && <div className="text-center text-xs text-zinc-500">正在压缩上下文…</div>}
               {running && (
                 <div className="flex items-center gap-2 text-xs text-zinc-500">
-                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-accent" />
+                  <span className="stream-cursor-glow" />
                   Forge 正在处理…
                 </div>
               )}

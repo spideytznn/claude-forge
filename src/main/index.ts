@@ -6,7 +6,7 @@ import {
   markGpuBackendWindowReady
 } from './gpuBackend'
 import { registerIpc } from './ipc'
-import { log } from './logger'
+import { log, scheduleLogMaintenance } from './logger'
 import { seedDefaultIfNeeded } from './providers'
 import { loadSettings, saveSettings } from './settings'
 import { createTray, type ForgeTray } from './tray'
@@ -29,6 +29,7 @@ const WINDOW_FRAME_COLOR = WINDOW_BACKGROUND_COLOR
 const RENDERER_DIAGNOSTICS =
   !app.isPackaged || process.env['FORGE_RENDER_DIAGNOSTICS'] === '1'
 const AUTO_UPDATE_CHECK_DELAY_MS = 3500
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
 
 if (!app.isPackaged) {
   app.commandLine.appendSwitch('remote-debugging-port', process.env['FORGE_REMOTE_DEBUG_PORT'] ?? '9223')
@@ -103,6 +104,16 @@ function scheduleAutoUpdateCheck(): void {
  *  module load (pre-ready) so the switch is set before GPU init; missing/corrupt
  *  file → default off (D3D11, the stable choice). */
 configureWindowsGpuBackend()
+scheduleLogMaintenance()
+
+function showAndFocusMainWindow(): void {
+  const win = mainWindow
+  if (!win || win.isDestroyed()) return
+  if (!win.isVisible()) win.show()
+  if (win.isMinimized()) win.restore()
+  win.focus()
+  if (process.platform === 'win32') win.moveTop()
+}
 
 function createWindow(): void {
   const vulkanBackend = isVulkanBackendActive()
@@ -241,35 +252,43 @@ function createWindow(): void {
   }
 }
 
-app.whenReady().then(() => {
-  seedDefaultIfNeeded()
-  // Tray is created after the window; pass a getter so registerIpc's closures
-  // pick up the live tray (used for tooltip updates on session end).
-  registerIpc(
-    () => mainWindow,
-    () => isQuitting,
-    (v) => {
-      isQuitting = v
-    },
-    () => forgeTray,
-    () => {
-      // One-shot bypass for the next close (the resolve-close "quit" path).
-      skipNextCloseIntercept = true
-    }
-  )
-  createWindow()
-  forgeTray = createTray(
-    () => mainWindow,
-    () => {
-      isQuitting = true
-      app.quit()
-    }
-  )
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  app.on('second-instance', () => {
+    showAndFocusMainWindow()
   })
-})
+
+  app.whenReady().then(() => {
+    seedDefaultIfNeeded()
+    // Tray is created after the window; pass a getter so registerIpc's closures
+    // pick up the live tray (used for tooltip updates on session end).
+    registerIpc(
+      () => mainWindow,
+      () => isQuitting,
+      (v) => {
+        isQuitting = v
+      },
+      () => forgeTray,
+      () => {
+        // One-shot bypass for the next close (the resolve-close "quit" path).
+        skipNextCloseIntercept = true
+      }
+    )
+    createWindow()
+    forgeTray = createTray(
+      () => mainWindow,
+      () => {
+        isQuitting = true
+        app.quit()
+      }
+    )
+
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow()
+    })
+  })
+}
 
 app.on('before-quit', () => {
   isQuitting = true

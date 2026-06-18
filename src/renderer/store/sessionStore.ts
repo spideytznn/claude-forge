@@ -25,7 +25,12 @@ import type {
   PendingMessage
 } from '../types'
 import { pickedFileToUserAttachment } from '../utils/attachments'
-import { DEFAULT_CLAUDE_MODEL_ID, DEFAULT_CODEX_MODEL_ID } from '../../shared/models'
+import {
+  DEFAULT_CLAUDE_MODEL_ID,
+  DEFAULT_CODEX_MODEL_ID,
+  DEFAULT_HERMES_MODEL_ID
+} from '../../shared/models'
+import { emitForgeEvent } from '../events'
 
 /** A buffered `content_block_delta` waiting to be folded into the store in a
  *  single batched update (one per animation frame). See streamBatcher.ts. */
@@ -60,6 +65,10 @@ interface SessionStore {
   /** UI-selected model/effort differs from the live bridge process. Apply it
    *  lazily right before the next user message so changing controls is inert. */
   sessionConfigDirty: boolean
+  /** Selected model has not been applied to the live agent process yet. */
+  sessionModelDirty: boolean
+  /** The bridge process has ended and its session id can no longer accept input. */
+  bridgeEnded: boolean
 
   startSession: (args: StartArgs) => Promise<void>
   sendMessage: (text: string, attachments?: PickedFile[]) => Promise<void>
@@ -366,6 +375,7 @@ function modelForAgent(
   if (agentBackend === 'codex' && model && (/^claude/i.test(model) || model === DEFAULT_CODEX_MODEL_ID)) {
     return undefined
   }
+  if (agentBackend === 'hermes' && model === DEFAULT_HERMES_MODEL_ID) return undefined
   return model
 }
 
@@ -373,7 +383,23 @@ function displayModelForAgent(
   agentBackend: AgentBackendId | undefined,
   model: string | undefined
 ): string {
-  return modelForAgent(agentBackend, model) ?? (agentBackend === 'codex' ? DEFAULT_CODEX_MODEL_ID : DEFAULT_CLAUDE_MODEL_ID)
+  return modelForAgent(agentBackend, model) ??
+    (agentBackend === 'codex'
+      ? DEFAULT_CODEX_MODEL_ID
+      : agentBackend === 'hermes'
+        ? DEFAULT_HERMES_MODEL_ID
+        : DEFAULT_CLAUDE_MODEL_ID)
+}
+
+function isUserStopDiagnostic(error: string | undefined): boolean {
+  if (!error) return false
+  const text = error.toLowerCase()
+  return text.includes('[ede_diagnostic]') && text.includes('result_type=user')
+}
+
+function isModelSwitchControlOutput(text: string | undefined): boolean {
+  if (!text) return false
+  return /<local-command-stdout>\s*Set model to [\s\S]*?<\/local-command-stdout>/i.test(text.trim())
 }
 
 /** True if the Task tool_use that spawned a task was called with
@@ -652,6 +678,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
   sessionsHasMore: false,
   tasks: [], pendingQueue: [],
   sessionConfigDirty: false,
+  sessionModelDirty: false,
+  bridgeEnded: false,
 
   async startSession(args) {
     if (get().starting) return
@@ -690,6 +718,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         items: [],
         tasks: [], pendingQueue: [],
         sessionConfigDirty: false,
+        sessionModelDirty: false,
+        bridgeEnded: false,
         status: { running: false },
         currentStreamingMsgId: null
       })
@@ -708,11 +738,18 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const atts = attachments ?? []
     if (!value && atts.length === 0) return
 
-    if (get().sessionConfigDirty && !get().starting && !get().status.running) {
+    const needsSessionRefresh =
+      (get().sessionConfigDirty || get().sessionModelDirty || get().bridgeEnded) &&
+      !get().starting &&
+      !get().status.running
+    if (needsSessionRefresh) {
       const oldMeta = meta
       const oldSessionId = oldMeta.sessionId
       const newId = uid()
       const nextMeta: SessionMeta = { ...oldMeta, sessionId: newId, tools: [] }
+      const refreshingModel = get().sessionModelDirty
+      const shouldResume = !!oldMeta.sdkSessionId && !refreshingModel
+      if (!shouldResume) delete nextMeta.sdkSessionId
 
       set({
         meta: nextMeta,
@@ -727,11 +764,11 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           ...(oldMeta.agentBackend ? { agentBackend: oldMeta.agentBackend } : {}),
           effort: get().effort,
           permissionMode: oldMeta.permissionMode as PermissionMode,
-          ...(oldMeta.sdkSessionId ? { resume: oldMeta.sdkSessionId } : {}),
+          ...(shouldResume ? { resume: oldMeta.sdkSessionId } : {}),
           bridgeSessionId: newId
         })
         await window.api.closeSession(oldSessionId).catch(() => {})
-        set({ sessionConfigDirty: false })
+        set({ sessionConfigDirty: false, sessionModelDirty: refreshingModel, bridgeEnded: false })
         meta = get().meta
         if (!meta) return
       } catch (error: unknown) {
@@ -789,7 +826,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     } else {
       set((s) => ({
         items: [...s.items, { id: uid(), kind: 'user', text: value, parentToolUseId: null, ...attProps }],
-        status: { ...s.status, running: true }
+        status: { ...s.status, running: true, error: undefined }
       }))
     }
     try {
@@ -818,7 +855,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     const meta = get().meta
     if (!meta) return
     if (meta.model === model) return
-    set({ meta: { ...meta, model }, sessionConfigDirty: true })
+    if (meta.agentBackend === 'hermes') return
+    set({ meta: { ...meta, model }, sessionConfigDirty: true, sessionModelDirty: true })
   },
 
   async setPermissionMode(mode) {
@@ -834,7 +872,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
 
   reset() {
     cancelActiveHistoryHydration(0)
-    set({ starting: false, meta: null, items: [], tasks: [], pendingQueue: [], sessionConfigDirty: false, status: emptyStatus, pendingPermissions: [], currentStreamingMsgId: null, sessions: [], sessionsHasMore: false })
+    set({ starting: false, meta: null, items: [], tasks: [], pendingQueue: [], sessionConfigDirty: false, sessionModelDirty: false, bridgeEnded: false, status: emptyStatus, pendingPermissions: [], currentStreamingMsgId: null, sessions: [], sessionsHasMore: false })
   },
 
   async bootstrap() {
@@ -874,6 +912,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       items: [],
       tasks: [], pendingQueue: [],
       sessionConfigDirty: false,
+      sessionModelDirty: false,
+      bridgeEnded: false,
       sessions: [],
       sessionsHasMore: false,
       status: { running: false },
@@ -908,7 +948,9 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               model,
               ...(agentBackend ? { agentBackend } : {})
             },
-            sessionConfigDirty: false
+            sessionConfigDirty: false,
+            sessionModelDirty: false,
+            bridgeEnded: false
           }
         : {}
     ))
@@ -1030,6 +1072,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       items: [],
       tasks: [], pendingQueue: [],
       sessionConfigDirty: false,
+      sessionModelDirty: false,
+      bridgeEnded: false,
       status: { running: false },
       currentStreamingMsgId: null,
       meta: {
@@ -1093,6 +1137,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       items: cachedItems ? visibleHistoryTail(cachedItems) : [],
       tasks: [], pendingQueue: [],
       sessionConfigDirty: false,
+      sessionModelDirty: false,
+      bridgeEnded: false,
       status: { running: false },
       currentStreamingMsgId: null,
       meta: {
@@ -1127,8 +1173,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       }
       if (targetBackend !== currentBackend) {
         await window.api.savePreferences({ claudeExecutionBackend: targetBackend })
-        window.dispatchEvent(new Event('forge:provider-changed'))
-        window.dispatchEvent(new Event('forge:model-options-changed'))
+        emitForgeEvent('providerChanged')
+        emitForgeEvent('modelOptionsChanged')
       }
       const provider = await window.api.getActiveProvider().catch(() => null)
       return { model: provider?.model ?? model, canStart: true }
@@ -1272,6 +1318,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
       tasks: [],
       pendingQueue: [],
       sessionConfigDirty: false,
+      sessionModelDirty: false,
+      bridgeEnded: false,
       meta: {
         sessionId: newId,
         ...(agentBackend ? { agentBackend } : {}),
@@ -1360,8 +1408,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
     if (get().meta?.sessionId !== e.sessionId) return
 
     if (e.type === 'agent:ended') {
+      const endedError = isUserStopDiagnostic(e.error) ? undefined : e.error
       set((s) => ({
-        status: { ...s.status, running: false, error: e.error ?? s.status.error }
+        bridgeEnded: true,
+        status: { ...s.status, running: false, error: endedError ?? s.status.error }
       }))
       return
     }
@@ -1387,10 +1437,12 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               ...(s.meta?.agentBackend ? { agentBackend: s.meta.agentBackend } : {}),
               sdkSessionId: m.session_id,
               cwd: m.cwd,
-              model: s.sessionConfigDirty ? (s.meta?.model ?? m.model) : m.model,
+              model: (s.sessionConfigDirty || s.sessionModelDirty) ? (s.meta?.model ?? m.model) : m.model,
               permissionMode: m.permissionMode,
               tools: m.tools
             },
+            sessionModelDirty: false,
+            bridgeEnded: false,
             status: { ...s.status }
           }))
         } else if (subtype === 'status') {
@@ -1507,6 +1559,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
         const parent = (msg.parent_tool_use_id as string | null) ?? null
         const content = (msg as unknown as { message: { content: unknown } }).message.content
         if (typeof content === 'string') {
+          if (isModelSwitchControlOutput(content)) {
+            set((s) => ({ status: { ...s.status, running: false } }))
+            break
+          }
           // De-dupe: sendMessage already renders the user's text optimistically, so
           // if the SDK echoes our own message back, don't add it a second time.
           set((s) => {
@@ -1544,6 +1600,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             const text = content
               .map((c) => (c && typeof c === 'object' && 'text' in c ? String((c as { text: unknown }).text) : ''))
               .join('')
+            if (isModelSwitchControlOutput(text)) {
+              set((s) => ({ status: { ...s.status, running: false } }))
+              break
+            }
             if (text) {
               set((s) => {
                 // De-dupe: sendMessage already rendered this optimistically
@@ -1598,6 +1658,10 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
               status: 'pending'
             })
           }
+        }
+        if (blocks.length > 0 && blocks.every((b) => b.kind === 'text' && isModelSwitchControlOutput(b.text))) {
+          set((s) => ({ status: { ...s.status, running: false }, currentStreamingMsgId: null }))
+          break
         }
         // Replace the in-flight streaming item with the authoritative final
         // message. Prefer currentStreamingMsgId (robust even when the streaming
@@ -1657,6 +1721,8 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
           subtype: string
           errors?: string[]
         }
+        const resultError = r.errors?.length ? r.errors.join('; ') : r.subtype
+        const shouldSuppressError = r.subtype === 'success' || isUserStopDiagnostic(resultError)
         set((s) => ({
           status: {
             ...s.status,
@@ -1668,12 +1734,7 @@ export const useSessionStore = create<SessionStore>((set, get) => ({
             outputTokens: r.usage?.output_tokens,
             cacheReadTokens: r.usage?.cache_read_input_tokens ?? undefined,
             stopReason: r.stop_reason ?? undefined,
-            error:
-              r.subtype === 'success'
-                ? s.status.error
-                : r.errors?.length
-                  ? r.errors.join('; ')
-                  : r.subtype
+            error: shouldSuppressError ? undefined : resultError
           },
           // Turn done: clear streaming flags, and drop the oldest queued
           // message into the transcript (the agent will process it next). If

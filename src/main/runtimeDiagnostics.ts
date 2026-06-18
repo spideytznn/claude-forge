@@ -1,15 +1,16 @@
 import { app } from 'electron'
 import { arch, hostname, platform, release } from 'node:os'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
 import { currentAgentBackend, currentBackend, getPreferences } from './preferences'
 import { getProviderProfile } from './providers'
 import { getSettingsSnapshot, replaceSettingsSnapshot } from './settings'
 import { toWslPath } from './wslClaude'
 import { AGENT_BACKENDS } from '../shared/agentBackends'
 import { readCodexDefaultModel } from './agent/CodexBackend'
+import { readHermesDefaultModel, readHermesProvider } from './hermesConfig'
 import { resolveWindowsCodexCommand } from './windowsCodex'
+import { resolveWindowsHermesCommand } from './windowsHermes'
+import { readRecentLog } from './logger'
 import type {
   DiagnosticReportOptions,
   HealthCheckItem,
@@ -252,6 +253,17 @@ async function probeWindowsCodexAsync(): Promise<RuntimeProbe> {
   }
 }
 
+async function probeWindowsHermesAsync(): Promise<RuntimeProbe> {
+  const resolved = resolveWindowsHermesCommand()
+  const version = await runAsync(resolved.command, [...resolved.argsPrefix, '--version'], 15000)
+  const parsed = parseClaudeProbe(version)
+  return {
+    ...parsed,
+    path: resolved.displayPath,
+    checkedAt: Date.now()
+  }
+}
+
 async function runtimeProbe(
   agentBackend: ReturnType<typeof currentAgentBackend>,
   backend: ReturnType<typeof currentBackend>,
@@ -268,6 +280,8 @@ async function runtimeProbe(
   const probe = (
     agentBackend === 'codex'
       ? probeWindowsCodexAsync()
+      : agentBackend === 'hermes'
+        ? probeWindowsHermesAsync()
       : backend === 'wsl'
         ? probeWslClaudeAsync()
         : probeWindowsClaudeAsync()
@@ -287,17 +301,22 @@ export async function getRuntimeStatus(
   options: RuntimeStatusOptions = {}
 ): Promise<RuntimeStatus> {
   const agentBackend = currentAgentBackend()
-  const backend = agentBackend === 'codex' ? 'windows' : currentBackend()
+  const backend = agentBackend === 'codex' || agentBackend === 'hermes' ? 'windows' : currentBackend()
   const agent = AGENT_BACKENDS.find((item) => item.id === agentBackend) ?? AGENT_BACKENDS[0]
   const profile = getProviderProfile(backend)
   const provider =
     agentBackend === 'codex'
       ? null
-      : profile.providers.find((p) => p.id === profile.activeProviderId) ?? null
+      : agentBackend === 'hermes'
+        ? readHermesProvider()
+        : profile.providers.find((p) => p.id === profile.activeProviderId) ?? null
   const probe = await runtimeProbe(agentBackend, backend, options.refreshProbe === true)
-  const model = agentBackend === 'codex'
-    ? modelOverride || readCodexDefaultModel() || 'codex-default'
-    : modelOverride || provider?.model || 'claude-opus-4-8'
+  const model =
+    agentBackend === 'codex'
+      ? modelOverride || readCodexDefaultModel() || 'codex-default'
+      : agentBackend === 'hermes'
+        ? modelOverride || readHermesDefaultModel() || 'hermes-default'
+        : modelOverride || provider?.model || 'claude-opus-4-8'
   return {
     agentBackend,
     agentName: agent.name,
@@ -424,10 +443,7 @@ export function repairWslEnvironment(cwd: string): WslHealthReport {
 }
 
 export function getDiagnosticLog(): string {
-  const path = resolve(process.cwd(), 'logs', 'main.log')
-  if (!existsSync(path)) return 'No Forge main log found.'
-  const lines = readFileSync(path, 'utf8').split(/\r?\n/)
-  return lines.slice(-220).join('\n').trim()
+  return readRecentLog(220)
 }
 
 function isSecretKey(key: string): boolean {

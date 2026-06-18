@@ -4,6 +4,7 @@ import { useUiStore } from '../store/uiStore'
 import type { ClaudeExecutionBackend, Project } from '../../shared/ipc'
 import Collapse from './Collapse'
 import { isWslProjectPath } from '../../shared/paths'
+import { emitForgeEvent, onForgeEvent } from '../events'
 
 const FolderIcon = (): JSX.Element => (
   <svg width="15" height="15" viewBox="0 0 24 24" fill="none">
@@ -100,8 +101,7 @@ export default function ProjectSwitcher({ collapsed }: { collapsed: boolean }): 
 
   useEffect(() => {
     void refreshWslSupport()
-    window.addEventListener('forge:wsl-support-changed', refreshWslSupport)
-    return () => window.removeEventListener('forge:wsl-support-changed', refreshWslSupport)
+    return onForgeEvent('wslSupportChanged', refreshWslSupport)
   }, [refreshWslSupport])
 
   useEffect(() => {
@@ -156,9 +156,9 @@ export default function ProjectSwitcher({ collapsed }: { collapsed: boolean }): 
       ...(targetBackend === 'wsl' ? { wslSupportEnabled: true } : {})
     })
     if (projectActionSeqRef.current !== actionSeq) return
-    window.dispatchEvent(new Event('forge:provider-changed'))
-    window.dispatchEvent(new Event('forge:model-options-changed'))
-    if (targetBackend === 'wsl') window.dispatchEvent(new Event('forge:wsl-support-changed'))
+    emitForgeEvent('providerChanged')
+    emitForgeEvent('modelOptionsChanged')
+    if (targetBackend === 'wsl') emitForgeEvent('wslSupportChanged')
     const list = await window.api.addProject(dir)
     if (projectActionSeqRef.current !== actionSeq) return
     setProjects(list)

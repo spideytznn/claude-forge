@@ -1,6 +1,6 @@
 export const DEFAULT_AGENT_BACKEND_ID = 'claude-code' as const
 
-export const AGENT_BACKEND_IDS = [DEFAULT_AGENT_BACKEND_ID, 'codex'] as const
+export const AGENT_BACKEND_IDS = [DEFAULT_AGENT_BACKEND_ID, 'codex', 'hermes'] as const
 
 export type AgentBackendId = (typeof AGENT_BACKEND_IDS)[number]
 
@@ -40,6 +40,21 @@ export const AGENT_BACKENDS: AgentBackendInfo[] = [
     id: 'codex',
     name: 'Codex',
     description: 'Windows Codex app-server backend with streamed events, approvals, MCP, and skills.',
+    status: 'available',
+    runtimeModes: ['windows'],
+    capabilities: {
+      streaming: true,
+      permissions: true,
+      mcp: true,
+      skills: true,
+      sessionHistory: true,
+      subagents: false
+    }
+  },
+  {
+    id: 'hermes',
+    name: 'Hermes',
+    description: 'Windows Hermes ACP backend with streamed messages, tools, approvals, and session history.',
     status: 'available',
     runtimeModes: ['windows'],
     capabilities: {

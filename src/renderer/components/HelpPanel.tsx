@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { onForgeEvent } from '../events'
 
 interface CommandBlockProps {
   label: string
@@ -51,8 +52,7 @@ export default function HelpPanel(): JSX.Element {
       void window.api.getPreferences().then((prefs) => setWslSupportEnabled(!!prefs.wslSupportEnabled))
     }
     refresh()
-    window.addEventListener('forge:wsl-support-changed', refresh)
-    return () => window.removeEventListener('forge:wsl-support-changed', refresh)
+    return onForgeEvent('wslSupportChanged', refresh)
   }, [])
 
   return (

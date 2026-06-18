@@ -4,6 +4,7 @@ import { useUiStore, type View } from '../store/uiStore'
 import Collapse from './Collapse'
 import ProjectSwitcher from './ProjectSwitcher'
 import type { AgentBackendId, ClaudeExecutionBackend, Provider, SessionListItem } from '../../shared/ipc'
+import { onForgeEvent } from '../events'
 
 type BackendFilter = 'all' | ClaudeExecutionBackend
 type SessionGroupMode = 'time' | 'project'
@@ -564,8 +565,7 @@ export default function Sidebar(): JSX.Element {
       })
     }
     refreshWslSupport()
-    window.addEventListener('forge:wsl-support-changed', refreshWslSupport)
-    return () => window.removeEventListener('forge:wsl-support-changed', refreshWslSupport)
+    return onForgeEvent('wslSupportChanged', refreshWslSupport)
   }, [refresh, reloadForBackendSwitch])
 
   // Re-read the active agent/provider whenever a new session spawns (covers
@@ -578,15 +578,15 @@ export default function Sidebar(): JSX.Element {
       ]).then(([prefs, provider]) => {
         const nextAgent = prefs?.agentBackend ?? 'claude-code'
         setAgentBackend(nextAgent)
-        setActiveProvider(nextAgent === 'codex' ? null : provider)
+        setActiveProvider(nextAgent === 'claude-code' || nextAgent === 'hermes' ? provider : null)
       })
     }
     refreshAgentProvider()
-    window.addEventListener('forge:provider-changed', refreshAgentProvider)
-    window.addEventListener('forge:agent-backend-changed', refreshAgentProvider)
+    const offProvider = onForgeEvent('providerChanged', refreshAgentProvider)
+    const offAgentBackend = onForgeEvent('agentBackendChanged', refreshAgentProvider)
     return () => {
-      window.removeEventListener('forge:provider-changed', refreshAgentProvider)
-      window.removeEventListener('forge:agent-backend-changed', refreshAgentProvider)
+      offProvider()
+      offAgentBackend()
     }
   }, [meta?.sessionId])
 
@@ -919,7 +919,7 @@ export default function Sidebar(): JSX.Element {
           : ''
   const wslNavInteractive =
     wslSupportEnabled && (wslNavRevealPhase === 'opening' || wslNavRevealPhase === 'visible')
-  const showProviderNav = agentBackend !== 'codex'
+  const showProviderNav = agentBackend === 'claude-code' || agentBackend === 'hermes'
 
   useEffect(() => {
     if (!showProviderNav && view === 'providers') setView('settings')

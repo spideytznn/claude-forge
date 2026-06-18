@@ -97,6 +97,11 @@ const api: ForgeApi = {
     ipcRenderer.on('forge:update-download-progress', listener)
     return () => ipcRenderer.removeListener('forge:update-download-progress', listener)
   },
+  onProvidersChanged: (cb) => {
+    const listener = (): void => cb()
+    ipcRenderer.on('forge:providers-changed', listener)
+    return () => ipcRenderer.removeListener('forge:providers-changed', listener)
+  },
 
   saveMcpServer: (args) => ipcRenderer.invoke('forge:saveMcpServer', args),
   deleteMcpServer: (args) => ipcRenderer.invoke('forge:deleteMcpServer', args),

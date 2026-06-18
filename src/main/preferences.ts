@@ -30,7 +30,10 @@ export function composerModelsForAgent(
   s: ReturnType<typeof loadSettings>,
   backend: ClaudeExecutionBackend
 ): ComposerModel[] | undefined {
-  return currentAgentBackend(s) === 'codex' ? s.codexComposerModels : composerModelsForBackend(s, backend)
+  const agentBackend = currentAgentBackend(s)
+  if (agentBackend === 'codex') return s.codexComposerModels
+  if (agentBackend === 'hermes') return s.hermesComposerModels
+  return composerModelsForBackend(s, backend)
 }
 
 export function setComposerModelsForBackend(
@@ -47,7 +50,9 @@ function setComposerModelsForAgent(
   backend: ClaudeExecutionBackend,
   models: ComposerModel[]
 ): void {
-  if (currentAgentBackend(s) === 'codex') s.codexComposerModels = models
+  const agentBackend = currentAgentBackend(s)
+  if (agentBackend === 'codex') s.codexComposerModels = models
+  else if (agentBackend === 'hermes') s.hermesComposerModels = models
   else setComposerModelsForBackend(s, backend, models)
 }
 
@@ -72,6 +77,7 @@ export function getPreferences(): Preferences {
     claudeExecutionBackend: currentBackend(s),
     composerModels: composerModelsForAgent(s, backend),
     codexComposerModels: s.codexComposerModels,
+    hermesComposerModels: s.hermesComposerModels,
     vulkanBackend: s.vulkanBackend,
     minimizeToTray: s.minimizeToTray,
     nativeNotifications: s.nativeNotifications,
@@ -100,6 +106,9 @@ export function savePreferences(prefs: Preferences): Preferences {
   }
   if (prefs.codexComposerModels !== undefined) {
     s.codexComposerModels = prefs.codexComposerModels
+  }
+  if (prefs.hermesComposerModels !== undefined) {
+    s.hermesComposerModels = prefs.hermesComposerModels
   }
   if (prefs.vulkanBackend !== undefined) {
     s.vulkanBackend = prefs.vulkanBackend

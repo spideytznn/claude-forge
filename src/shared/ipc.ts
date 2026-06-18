@@ -198,6 +198,7 @@ export interface ComposerModel {
 }
 
 export type ClaudeExecutionBackend = 'windows' | 'wsl'
+export type ProviderBackend = ClaudeExecutionBackend | 'hermes'
 
 export interface PickDirectoryOptions {
   backend?: ClaudeExecutionBackend
@@ -219,6 +220,8 @@ export interface Preferences {
   composerModels?: ComposerModel[]
   /** Models shown when the Codex agent backend is active. */
   codexComposerModels?: ComposerModel[]
+  /** Models shown when the Hermes agent backend is active. */
+  hermesComposerModels?: ComposerModel[]
   /** Experimental: route Chromium's compositing through the ANGLE Vulkan
    *  backend on Windows (default D3D11). Off by default; requires restart and
    *  is higher-variance across GPU drivers. */
@@ -235,14 +238,14 @@ export interface Preferences {
 }
 
 export interface ProviderProfile {
-  backend: ClaudeExecutionBackend
+  backend: ProviderBackend
   providers: Provider[]
   activeProviderId: string | null
   composerModels?: ComposerModel[]
 }
 
 export interface ProviderProfiles {
-  activeBackend: ClaudeExecutionBackend
+  activeBackend: ProviderBackend
   profiles: ProviderProfile[]
 }
 
@@ -469,17 +472,17 @@ export interface ForgeApi {
   getProviderProfiles(): Promise<ProviderProfiles>
   /** Create or update a provider (upsert by id). Returns the updated list. */
   saveProvider(provider: Provider): Promise<Provider[]>
-  saveProviderForBackend(backend: ClaudeExecutionBackend, provider: Provider): Promise<ProviderProfile>
+  saveProviderForBackend(backend: ProviderBackend, provider: Provider): Promise<ProviderProfile>
   /** Remove a provider by id. Returns the updated list. */
   deleteProvider(id: string): Promise<Provider[]>
-  deleteProviderForBackend(backend: ClaudeExecutionBackend, id: string): Promise<ProviderProfile>
+  deleteProviderForBackend(backend: ProviderBackend, id: string): Promise<ProviderProfile>
   /** Make a provider active: writes its params into the current backend's
    *  Claude settings.json + sets that backend's active provider id. Caller
    *  restarts the session to apply. */
   setActiveProvider(id: string): Promise<void>
-  setActiveProviderForBackend(backend: ClaudeExecutionBackend, id: string): Promise<ProviderProfile>
+  setActiveProviderForBackend(backend: ProviderBackend, id: string): Promise<ProviderProfile>
   saveComposerModelsForBackend(
-    backend: ClaudeExecutionBackend,
+    backend: ProviderBackend,
     models: ComposerModel[]
   ): Promise<ProviderProfile>
 
@@ -540,6 +543,7 @@ export interface ForgeApi {
   onClosePrompt(cb: () => void): () => void
   onUpdateAvailable(cb: (info: UpdateCheckResult) => void): () => void
   onUpdateDownloadProgress(cb: (progress: UpdateDownloadProgress) => void): () => void
+  onProvidersChanged(cb: () => void): () => void
 
   pickDirectory(options?: PickDirectoryOptions): Promise<string | null>
   getApiKey(): Promise<string | null>

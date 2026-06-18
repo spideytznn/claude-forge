@@ -3,6 +3,7 @@ import { useSessionStore } from '../store/sessionStore'
 import { useUiStore } from '../store/uiStore'
 import type { ClaudeExecutionBackend, Provider } from '../../shared/ipc'
 import { isWslProjectPath } from '../../shared/paths'
+import { emitForgeEvent } from '../events'
 
 const EMPTY_PROVIDER_MAP: Record<ClaudeExecutionBackend, Provider[]> = {
   windows: [],
@@ -34,13 +35,18 @@ export default function Onboarding(): JSX.Element {
         const nextProviders: Record<ClaudeExecutionBackend, Provider[]> = { windows: [], wsl: [] }
         const nextSelected: Record<ClaudeExecutionBackend, string> = { windows: '', wsl: '' }
         for (const profile of profiles.profiles) {
+          if (profile.backend !== 'windows' && profile.backend !== 'wsl') continue
           nextProviders[profile.backend] = profile.providers
           nextSelected[profile.backend] =
             profile.activeProviderId ?? profile.providers[0]?.id ?? ''
         }
         setProvidersByBackend(nextProviders)
         setSelectedIds(nextSelected)
-        setBackend(profiles.activeBackend ?? 'windows')
+        setBackend(
+          profiles.activeBackend === 'windows' || profiles.activeBackend === 'wsl'
+            ? profiles.activeBackend
+            : 'windows'
+        )
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       }
@@ -103,9 +109,9 @@ export default function Onboarding(): JSX.Element {
       // Persist the picked directory as the first project (and last-used), so
       // the app auto-enters it next launch instead of showing onboarding again.
       await window.api.addProject(cleanCwd)
-      if (targetBackend === 'wsl') window.dispatchEvent(new Event('forge:wsl-support-changed'))
-      window.dispatchEvent(new Event('forge:provider-changed'))
-      window.dispatchEvent(new Event('forge:model-options-changed'))
+      if (targetBackend === 'wsl') emitForgeEvent('wslSupportChanged')
+      emitForgeEvent('providerChanged')
+      emitForgeEvent('modelOptionsChanged')
       await startSession({ cwd: cleanCwd, model: targetSelected.model })
       // startSession() sets meta → App switches to the main view and unmounts us.
     } catch (e) {

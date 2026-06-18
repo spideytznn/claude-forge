@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import McpServerFormModal from './McpServerFormModal'
 import type { McpServerEntry, McpServerStatusKind, McpScope } from '../../shared/ipc'
+import { RefreshIcon, ToolPanelAlert, ToolPanelButton } from './ToolPanelChrome'
 
 const STATUS_META: Record<McpServerStatusKind, { label: string; dot: string; text: string }> = {
   connected: { label: '已连接', dot: 'bg-emerald-500', text: 'text-emerald-400' },
@@ -51,6 +52,7 @@ export default function McpPanel(): JSX.Element {
   const [confirmDelete, setConfirmDelete] = useState<McpServerEntry | null>(null)
   const [viewing, setViewing] = useState<McpServerEntry | null>(null)
   const [copied, setCopied] = useState(false)
+  const mcpAddCommand = meta?.agentBackend === 'hermes' ? 'hermes mcp add' : 'claude mcp add'
 
   const fetchServers = useCallback(async (): Promise<void> => {
     if (!meta) return
@@ -150,32 +152,32 @@ export default function McpPanel(): JSX.Element {
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <ToolPanelButton
+              variant="primary"
               onClick={openAdd}
-              className="rounded-lg bg-accent px-3 py-1.5 text-xs font-medium text-white transition hover:brightness-110"
             >
               + 添加服务器
-            </button>
-            <button
+            </ToolPanelButton>
+            <ToolPanelButton
               onClick={() => void fetchServers()}
               disabled={loading}
-              className="rounded-lg border border-border-subtle bg-bg-elev px-3 py-1.5 text-xs text-zinc-300 transition hover:bg-bg-hover disabled:opacity-50"
             >
-              {loading ? '刷新中…' : '↻ 刷新'}
-            </button>
+              <RefreshIcon spinning={loading} />
+              <span>{loading ? '刷新中' : '刷新'}</span>
+            </ToolPanelButton>
           </div>
         </div>
 
         {starting && (
-          <div className="mb-4 rounded-lg border border-amber-900/40 bg-amber-950/20 px-3 py-2 text-sm text-amber-300/90">
+          <ToolPanelAlert tone="warning">
             正在重开会话以应用配置更改…
-          </div>
+          </ToolPanelAlert>
         )}
 
         {error && (
-          <div className="mb-4 rounded-lg border border-red-900/50 bg-red-950/30 px-3 py-2 text-sm text-red-300">
+          <ToolPanelAlert tone="error">
             {error}
-          </div>
+          </ToolPanelAlert>
         )}
 
         {loading && servers.length === 0 && (
@@ -187,7 +189,7 @@ export default function McpPanel(): JSX.Element {
             <div className="text-sm text-zinc-300">尚未配置 MCP 服务器</div>
             <p className="mx-auto mt-2 max-w-md text-xs leading-relaxed text-zinc-500">
               点击右上角「+ 添加服务器」,或使用{' '}
-              <code className="rounded bg-bg-elev px-1 py-0.5 text-zinc-400">claude mcp add</code>{' '}
+              <code className="rounded bg-bg-elev px-1 py-0.5 text-zinc-400">{mcpAddCommand}</code>{' '}
               命令添加。
             </p>
           </div>

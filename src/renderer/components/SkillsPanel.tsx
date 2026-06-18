@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useSessionStore } from '../store/sessionStore'
 import type { AgentBackendId, SkillInfo, MarketplacePlugin } from '../../shared/ipc'
 import DisclosureSelect from './DisclosureSelect'
+import { onForgeEvent } from '../events'
 
 type Tab = 'skills' | 'store'
 
@@ -138,10 +139,10 @@ export default function SkillsPanel(): JSX.Element {
       })
     }
     refreshAgentBackend()
-    window.addEventListener('forge:agent-backend-changed', refreshAgentBackend)
+    const offAgentBackend = onForgeEvent('agentBackendChanged', refreshAgentBackend)
     return () => {
       cancelled = true
-      window.removeEventListener('forge:agent-backend-changed', refreshAgentBackend)
+      offAgentBackend()
     }
   }, [metaAgentBackend])
 
@@ -209,7 +210,12 @@ function SkillsTab({
   const meta = useSessionStore((s) => s.meta)
   const starting = useSessionStore((s) => s.starting)
   const activeAgentBackend = meta?.agentBackend ?? agentBackend
-  const skillRoot = activeAgentBackend === 'codex' ? '~/.codex/skills/' : '~/.claude/skills/'
+  const skillRoot =
+    activeAgentBackend === 'codex'
+      ? '~/.codex/skills/'
+      : activeAgentBackend === 'hermes'
+        ? '~/.hermes/skills/'
+        : '~/.claude/skills/'
 
   const [skills, setSkills] = useState<SkillInfo[]>([])
   const [loading, setLoading] = useState(false)
@@ -361,13 +367,16 @@ function StoreTab({
     [visible, texts]
   )
   const { tr, loading: translating } = useTranslated(visibleTexts, translate)
-  const agentName = agentBackend === 'codex' ? 'Codex' : 'Claude Code'
+  const agentName =
+    agentBackend === 'codex' ? 'Codex' : agentBackend === 'hermes' ? 'Hermes' : 'Claude Code'
 
   return (
     <>
       <p className="mb-4 text-xs text-zinc-500">
         {agentBackend === 'codex' ? (
           <>浏览 Codex 插件市场目录。插件可提供技能与工具，安装与启用请在 Codex 的插件管理里完成。</>
+        ) : agentBackend === 'hermes' ? (
+          <>Hermes 的技能和插件由 Hermes 自身管理；这里会显示当前会话通过 ACP 暴露的命令。</>
         ) : (
           <>
             浏览 Claude Code 插件市场目录(本地缓存)。插件可打包技能与工具 —— 安装请在 Claude Code 里用{' '}
