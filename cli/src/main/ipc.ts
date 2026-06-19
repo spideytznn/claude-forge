@@ -433,6 +433,15 @@ export function registerIpc(
     }
   })
 
+  ipcMain.handle('forge:refreshMcpServers', async (_e, sessionId: string) => {
+    try {
+      return await bridge.refreshMcpServers(sessionId)
+    } catch (err) {
+      log('ipc', `refreshMcpServers failed: ${err instanceof Error ? err.message : String(err)}`)
+      throw err
+    }
+  })
+
   ipcMain.handle('forge:toggleMcpServer',
     async (_e, sessionId: string, name: string, enabled: boolean): Promise<void> => {
       log('ipc', `toggleMcpServer session=${sessionId} name=${name} enabled=${enabled}`)

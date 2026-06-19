@@ -1,5 +1,6 @@
 import { memo, useState } from 'react'
 import type { ToolBlock } from '../types'
+import Collapse from './Collapse'
 import DiffView from './DiffView'
 
 function normalizeResult(result: unknown): string {
@@ -75,10 +76,12 @@ const ToolCallCard = memo(function ToolCallCard({ block }: { block: ToolBlock })
     !collapsed && block.name === 'Bash' ? ((block.input as { command?: string })?.command ?? '') : ''
 
   return (
-    <div className="my-1.5 overflow-hidden rounded-lg border border-border-subtle bg-bg-panel">
+    <div className="my-1.5 overflow-hidden rounded-lg border border-border-subtle bg-[#101116]">
       <button
+        type="button"
+        aria-expanded={!collapsed}
         onClick={() => setCollapsed((c) => !c)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-bg-hover"
+        className="flex w-full items-center gap-2 bg-[#14151b] px-3 py-2 text-left transition-colors hover:bg-[#1b1c23]"
       >
         <span className={`h-2 w-2 shrink-0 rounded-full ${meta.dot}`} />
         <span className="shrink-0 font-mono text-xs font-medium text-zinc-300">{block.name}</span>
@@ -92,8 +95,8 @@ const ToolCallCard = memo(function ToolCallCard({ block }: { block: ToolBlock })
         <span className="shrink-0 text-xs text-zinc-600">{collapsed ? '▸' : '▾'}</span>
       </button>
 
-      {!collapsed && (
-        <div className="border-t border-border-subtle px-3 py-2.5">
+      <Collapse open={!collapsed}>
+        <div className="border-t border-border-subtle bg-[#0f1015] px-3 py-2.5">
           {block.name === 'Bash' && inputText && (
             <pre className="mb-2 overflow-auto rounded bg-[#0b0c10] p-2.5 text-xs text-zinc-300">
               <span className="text-zinc-600">$ </span>
@@ -125,7 +128,7 @@ const ToolCallCard = memo(function ToolCallCard({ block }: { block: ToolBlock })
             <div className="text-xs text-zinc-600">排队中 — 等待批准或轮到执行。</div>
           )}
         </div>
-      )}
+      </Collapse>
     </div>
   )
 })

@@ -443,6 +443,8 @@ export interface ForgeApi {
   /** List every MCP server the active session knows about (settings-file +
    *  dynamically added), with live connection status. Requires an active session. */
   listMcpServers(sessionId: string): Promise<McpServerEntry[]>
+  /** Reload the backend's MCP configuration/status cache when supported, then return the list. */
+  refreshMcpServers(sessionId: string): Promise<McpServerEntry[]>
   /** Enable/disable an MCP server by name. Persists to settings (same as `claude mcp`). */
   toggleMcpServer(sessionId: string, name: string, enabled: boolean): Promise<void>
 

@@ -161,6 +161,10 @@ export class HermesBackend {
     return listHermesMcpServers()
   }
 
+  async refreshMcpServers(sessionId: string): Promise<McpServerEntry[]> {
+    return this.listMcpServers(sessionId)
+  }
+
   async toggleMcpServer(_sessionId: string, name: string, enabled: boolean): Promise<void> {
     setHermesMcpServerEnabled(name, enabled)
   }

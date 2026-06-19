@@ -177,6 +177,16 @@ export class CodexBackend {
     return (response.data ?? []).map(toMcpEntry)
   }
 
+  async refreshMcpServers(sessionId: string): Promise<McpServerEntry[]> {
+    const session = this.requireSession(sessionId)
+    await session.ready
+    const client = await this.ensureClient()
+    await client.request('config/mcpServer/reload').catch((error) => {
+      log('codex', `mcp reload failed: ${error instanceof Error ? error.message : String(error)}`)
+    })
+    return this.listMcpServers(sessionId)
+  }
+
   async toggleMcpServer(_sessionId: string, name: string, enabled: boolean): Promise<void> {
     const client = await this.ensureClient()
     await client.request('config/value/write', {

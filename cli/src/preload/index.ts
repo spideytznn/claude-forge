@@ -38,6 +38,7 @@ const api: ForgeApi = {
   getSubagentMessages: (sessionId, agentId, cwd) =>
     ipcRenderer.invoke('forge:getSubagentMessages', sessionId, agentId, cwd),
   listMcpServers: (sessionId) => ipcRenderer.invoke('forge:listMcpServers', sessionId),
+  refreshMcpServers: (sessionId) => ipcRenderer.invoke('forge:refreshMcpServers', sessionId),
   toggleMcpServer: (sessionId, name, enabled) =>
     ipcRenderer.invoke('forge:toggleMcpServer', sessionId, name, enabled),
   backgroundTask: (sessionId, toolUseId) =>

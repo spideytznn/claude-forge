@@ -26,6 +26,7 @@ interface AgentBackendAdapter {
   setPermissionMode(sessionId: string, mode: string): Promise<void>
   close(sessionId: string): Promise<void>
   listMcpServers(sessionId: string): Promise<McpServerEntry[]>
+  refreshMcpServers(sessionId: string): Promise<McpServerEntry[]>
   toggleMcpServer(sessionId: string, name: string, enabled: boolean): Promise<void>
   backgroundTask(sessionId: string, toolUseId?: string): Promise<boolean>
   listSkills(sessionId: string): Promise<SkillInfo[]>
@@ -96,6 +97,10 @@ export class AgentBridge {
 
   listMcpServers(sessionId: string): Promise<McpServerEntry[]> {
     return this.backendForSession(sessionId).listMcpServers(sessionId)
+  }
+
+  refreshMcpServers(sessionId: string): Promise<McpServerEntry[]> {
+    return this.backendForSession(sessionId).refreshMcpServers(sessionId)
   }
 
   toggleMcpServer(sessionId: string, name: string, enabled: boolean): Promise<void> {

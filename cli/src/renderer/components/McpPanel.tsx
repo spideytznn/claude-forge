@@ -68,6 +68,30 @@ export default function McpPanel(): JSX.Element {
     }
   }, [meta])
 
+  const refreshServers = useCallback(async (): Promise<void> => {
+    if (!meta) return
+    setLoading(true)
+    setError(null)
+    try {
+      const backend = meta.agentBackend ?? 'claude-code'
+      if (backend === 'claude-code') {
+        await restartSession()
+        const nextMeta = useSessionStore.getState().meta
+        if (nextMeta) {
+          const list = await window.api.listMcpServers(nextMeta.sessionId)
+          setServers(list)
+        }
+      } else {
+        const list = await window.api.refreshMcpServers(meta.sessionId)
+        setServers(list)
+      }
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setLoading(false)
+    }
+  }, [meta, restartSession])
+
   // Initial load, plus re-fetch once the session finishes starting (the query
   // handle isn't usable until claude.exe has spawned).
   useEffect(() => {
@@ -159,11 +183,11 @@ export default function McpPanel(): JSX.Element {
               + 添加服务器
             </ToolPanelButton>
             <ToolPanelButton
-              onClick={() => void fetchServers()}
-              disabled={loading}
+              onClick={() => void refreshServers()}
+              disabled={loading || starting}
             >
-              <RefreshIcon spinning={loading} />
-              <span>{loading ? '刷新中' : '刷新'}</span>
+              <RefreshIcon spinning={loading || starting} />
+              <span>{loading || starting ? '刷新中' : '刷新'}</span>
             </ToolPanelButton>
           </div>
         </div>

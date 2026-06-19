@@ -144,8 +144,8 @@ export default function SubagentMonitor({ onClose }: Props): JSX.Element {
     <>
       {/* outside-click catcher */}
       <div className="fixed inset-0 z-40" onClick={onClose} />
-      <div className="fixed bottom-9 left-6 z-50 flex max-h-[60vh] w-96 flex-col overflow-hidden rounded-xl border border-border-subtle bg-bg-panel shadow-2xl">
-        <div className="flex items-center gap-2 border-b border-border-subtle px-3 py-2">
+      <div className="liquid-float-in fixed bottom-9 left-6 z-50 flex max-h-[60vh] w-96 flex-col overflow-hidden rounded-xl border border-border-subtle bg-[#101116] shadow-2xl">
+        <div className="flex items-center gap-2 border-b border-border-subtle bg-[#14151b] px-3 py-2">
           {selected ? (
             <>
               <button

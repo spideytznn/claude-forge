@@ -274,6 +274,29 @@ export class ClaudeCodeBackend {
     return status.map(toEntry)
   }
 
+  async refreshMcpServers(sessionId: string): Promise<McpServerEntry[]> {
+    const q = await this.awaitQuery(sessionId)
+    const status = (await q.mcpServerStatus()) as McpServerStatus[]
+    if (typeof q.reconnectMcpServer === 'function') {
+      await Promise.all(
+        status
+          .filter((server) => server.status !== 'disabled')
+          .map((server) =>
+            q.reconnectMcpServer(server.name).catch((error: unknown) => {
+              log(
+                'mcp',
+                `reconnect failed server=${server.name}: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
+              )
+            })
+          )
+      )
+    }
+    const refreshed = (await q.mcpServerStatus()) as McpServerStatus[]
+    return refreshed.map(toEntry)
+  }
+
   /** Enable/disable an MCP server by name (persists to settings). */
   async toggleMcpServer(sessionId: string, name: string, enabled: boolean): Promise<void> {
     const q = await this.awaitQuery(sessionId)
