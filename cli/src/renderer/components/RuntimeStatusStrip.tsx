@@ -89,11 +89,10 @@ export default function RuntimeStatusStrip(): JSX.Element {
     : status?.agentPath || status?.claudeCodePath || versionSource || version
 
   const chip =
-    'inline-flex min-w-0 items-center gap-1 rounded-[5px] px-1 py-0 text-[9px] leading-[11px] transition hover:bg-white/[0.07] hover:text-zinc-200'
+    'inline-flex min-w-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] leading-4 transition hover:bg-white/[0.07] hover:text-zinc-200'
 
   return (
-    <div className="px-1 pb-0 pt-1">
-      <div className="flex w-full items-center gap-0.5 overflow-hidden rounded-[14px] border border-white/[0.03] bg-white/[0.006] px-1 py-0 text-zinc-500">
+    <div className="flex w-full items-center gap-1 overflow-hidden px-2.5 pb-0.5 pt-1 text-zinc-500">
         <button
           type="button"
           onClick={() => setView(backend === 'wsl' && wslSupportEnabled ? 'wslHealth' : 'settings')}
@@ -132,7 +131,6 @@ export default function RuntimeStatusStrip(): JSX.Element {
           <span className="text-zinc-300">{agentName}</span>
           <span className="font-mono text-zinc-300">{version}</span>
         </button>
-      </div>
     </div>
   )
 }
